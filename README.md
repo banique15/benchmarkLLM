@@ -27,6 +27,7 @@ A web application for benchmarking Large Language Models (LLMs) using the OpenRo
 - npm or yarn
 - Supabase account
 - OpenRouter API key
+- Modern web browser with localStorage enabled (cookies and site data saving must be allowed)
 - Docker and Docker Compose (optional, for containerized setup)
 
 ### Installation
@@ -78,12 +79,14 @@ A web application for benchmarking Large Language Models (LLMs) using the OpenRo
 
 3. (Optional) Seed the database with sample data:
    - Copy the contents of `supabase/seed.sql` and run it in the SQL editor
-
 ## Usage
 
 1. Open the application in your browser (http://localhost:5173)
+   - Ensure your browser allows cookies and site data saving for the application
+   - The application uses localStorage to store your API key and preferences
 2. Go to the Settings page and enter your OpenRouter API key
    - Use the "Test API Key" button to verify your API key is valid
+   - The application will securely store your API key in your browser's localStorage
    - The application will securely store your API key in your browser's localStorage
 3. Create a new benchmark configuration:
    - Add test cases with prompts
@@ -96,7 +99,6 @@ A web application for benchmarking Large Language Models (LLMs) using the OpenRo
    - Compare model performance across different metrics
    - View detailed results for each model and test case
    - Export results for further analysis
-
 ## API Key Handling & Security
 
 The LLM Benchmark application takes security seriously, especially when handling API keys:
@@ -106,6 +108,25 @@ The LLM Benchmark application takes security seriously, especially when handling
 - All API calls to OpenRouter are made through our backend proxy for added security
 - You can test your API key's validity before using it for benchmarks
 - The application masks your API key by default, showing only the first and last few characters
+- You can clear your API key from localStorage at any time
+
+### Browser Storage Requirements
+
+For the application to function properly:
+
+- Your browser must have localStorage enabled
+- Cookies and site data saving must be allowed for the application domain
+- If you're using private/incognito browsing mode, you'll need to re-enter your API key each session
+- If you clear your browser data, you'll need to re-enter your API key
+
+To check if localStorage is enabled in your browser, you can open the developer console and type:
+```javascript
+localStorage.setItem('test', 'test');
+console.log(localStorage.getItem('test'));
+localStorage.removeItem('test');
+```
+
+If this returns "test" without errors, localStorage is working correctly.
 - You can clear your API key from localStorage at any time
 
 ## Development
