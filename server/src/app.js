@@ -20,11 +20,33 @@ const PORT = process.env.PORT || 3001;
 
 // Apply middleware
 app.use(helmet()); // Security headers
-app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+// Configure CORS to be more flexible for development
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+    
+    // Check if origin is allowed
+    const allowedOrigins = [
+      process.env.CLIENT_URL,
+      'http://localhost:5173',
+      'http://localhost:5174',
+      'http://127.0.0.1:5173',
+      'http://127.0.0.1:5174'
+    ].filter(Boolean); // Remove any undefined/null values
+    
+    if (allowedOrigins.indexOf(origin) !== -1 || origin.startsWith('http://localhost:')) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
-}));
+  credentials: true // Allow cookies if needed
+};
+
+app.use(cors(corsOptions));
 app.use(express.json()); // Parse JSON request body
 app.use(morgan('dev')); // Request logging
 

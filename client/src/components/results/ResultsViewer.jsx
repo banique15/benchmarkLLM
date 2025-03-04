@@ -127,7 +127,7 @@ const ResultsViewer = () => {
                 <tr key={result.id}>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">
-                      {result.config_name || 'Unnamed Benchmark'}
+                      {result.benchmark_configs?.name || 'Unnamed Benchmark'}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">

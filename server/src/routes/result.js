@@ -8,7 +8,10 @@ router.get('/', async (req, res, next) => {
   try {
     const { data, error } = await supabase
       .from('benchmark_results')
-      .select('*')
+      .select(`
+        *,
+        benchmark_configs:config_id(name)
+      `)
       .order('executed_at', { ascending: false });
     
     if (error) {
@@ -32,12 +35,13 @@ router.get('/:id', async (req, res, next) => {
     
     // We don't need to check for benchmark- prefix anymore since all results are stored in the database
     
-    // For regular IDs, fetch from the database
+    // For regular IDs, fetch from the database with the config name
     const { data, error } = await supabase
       .from('benchmark_results')
       .select(`
         *,
-        test_case_results(*)
+        test_case_results(*),
+        benchmark_configs:config_id(name)
       `)
       .eq('id', id)
       .single();
@@ -103,7 +107,8 @@ router.get('/public/:publicId', async (req, res, next) => {
       .from('benchmark_results')
       .select(`
         *,
-        test_case_results(*)
+        test_case_results(*),
+        benchmark_configs:config_id(name)
       `)
       .eq('public_id', publicId)
       .single();
@@ -130,13 +135,13 @@ router.get('/:id/export', async (req, res, next) => {
     if (!id) {
       return res.status(400).json({ error: 'Result ID is required' });
     }
-    
-    // Get the benchmark result with test case results
+    // Get the benchmark result with test case results and config name
     const { data, error } = await supabase
       .from('benchmark_results')
       .select(`
         *,
-        test_case_results(*)
+        test_case_results(*),
+        benchmark_configs:config_id(name)
       `)
       .eq('id', id)
       .single();

@@ -247,7 +247,7 @@ const ResultDetails = () => {
         <h2 className="text-lg font-semibold mb-4">Benchmark Information</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <p className="text-gray-700"><span className="font-medium">Name:</span> {result.config_name || 'Unnamed Benchmark'}</p>
+            <p className="text-gray-700"><span className="font-medium">Name:</span> {result.benchmark_configs?.name || 'Unnamed Benchmark'}</p>
             <p className="text-gray-700"><span className="font-medium">Executed:</span> {formatDate(result.executed_at)}</p>
             <p className="text-gray-700">
               <span className="font-medium">Status:</span>{' '}
