@@ -32,9 +32,11 @@ const corsOptions = {
       'http://localhost:5173',
       'http://localhost:5174',
       'http://127.0.0.1:5173',
-      'http://127.0.0.1:5174'
+      'http://127.0.0.1:5174',
+      'https://benchmarkllm.onrender.com',
+      'https://benchmarkllm-1.onrender.com',
     ].filter(Boolean); // Remove any undefined/null values
-    
+   
     if (allowedOrigins.indexOf(origin) !== -1 || origin.startsWith('http://localhost:')) {
       callback(null, true);
     } else {

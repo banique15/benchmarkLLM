@@ -1,8 +1,11 @@
 import axios from 'axios';
 
+// Import the API_URL from environment
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
 // Create an axios instance for OpenRouter API
 const openRouterClient = axios.create({
-  baseURL: '/api/openrouter', // This will be proxied through our backend
+  baseURL: `${API_URL}/api/openrouter`, // Use the full URL with API_URL
   headers: {
     'Content-Type': 'application/json',
   },
