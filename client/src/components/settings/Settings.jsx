@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 
+// Import the API_URL
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
 const Settings = () => {
   const [apiKey, setApiKey] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -37,7 +40,7 @@ const Settings = () => {
 
       // Test the API key by making a request to the OpenRouter API
       try {
-        const response = await fetch('/api/openrouter/test-api-key', {
+        const response = await fetch(`${API_URL}/api/openrouter/test-api-key`, {
           headers: {
             'X-API-Key': apiKey
           }
@@ -85,7 +88,7 @@ const Settings = () => {
     setSaveSuccess(false);
     
     try {
-      const response = await fetch('/api/openrouter/test-api-key', {
+      const response = await fetch(`${API_URL}/api/openrouter/test-api-key`, {
         headers: {
           'X-API-Key': apiKey
         }
