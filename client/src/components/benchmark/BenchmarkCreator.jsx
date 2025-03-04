@@ -413,7 +413,7 @@ const BenchmarkCreator = () => {
                       <input
                         type="text"
                         className="input pl-10"
-                        placeholder="Search models..."
+                        placeholder="       Search models..."
                         value={modelSearchQuery}
                         onChange={(e) => setModelSearchQuery(e.target.value)}
                       />
