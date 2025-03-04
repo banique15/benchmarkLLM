@@ -18,6 +18,9 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Trust proxy for correct client IP detection behind Render's proxy
+app.set('trust proxy', 1);
+
 // Apply middleware
 app.use(helmet()); // Security headers
 app.use(cors({
@@ -35,6 +38,7 @@ const apiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: 'Too many requests from this IP, please try again after 15 minutes',
+  ipSourceStrategy: 'trustProxy', // Use the IP from X-Forwarded-For when behind a proxy
 });
 app.use('/api', apiLimiter);
 
