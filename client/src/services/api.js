@@ -71,13 +71,22 @@ export const createBenchmarkResult = async (result) => {
     throw error;
   }
 };
-
 export const updateBenchmarkResult = async (id, updates) => {
   try {
     const response = await apiClient.put(`/api/results/${id}`, updates);
     return response.data;
   } catch (error) {
     console.error(`Error updating benchmark result with id ${id}:`, error);
+    throw error;
+  }
+};
+
+export const deleteBenchmarkResult = async (id) => {
+  try {
+    const response = await apiClient.delete(`/api/results/${id}`);
+    return response.status === 204;
+  } catch (error) {
+    console.error(`Error deleting benchmark result with id ${id}:`, error);
     throw error;
   }
 };
@@ -90,4 +99,5 @@ export default {
   getBenchmarkResultById,
   createBenchmarkResult,
   updateBenchmarkResult,
+  deleteBenchmarkResult
 };

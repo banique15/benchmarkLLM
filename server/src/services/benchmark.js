@@ -88,7 +88,7 @@ const processBenchmark = async (benchmarkConfig, resultId, apiKey) => {
         modelResults[modelId].testResults[testCase.id] = testResult;
         
         // Save individual test case result to database
-        await saveTestCaseResult(resultId, modelId, testCase.id, testResult);
+        await saveTestCaseResult(resultId, modelId, testCase.id, testResult, testCase.prompt);
       }
     }
     
@@ -113,7 +113,7 @@ const processBenchmark = async (benchmarkConfig, resultId, apiKey) => {
 };
 
 // Save a test case result
-const saveTestCaseResult = async (benchmarkResultId, modelId, testCaseId, testResult) => {
+const saveTestCaseResult = async (benchmarkResultId, modelId, testCaseId, testResult, prompt) => {
   try {
     const { error } = await supabase
       .from('test_case_results')
@@ -125,6 +125,7 @@ const saveTestCaseResult = async (benchmarkResultId, modelId, testCaseId, testRe
         latency: testResult.latency || 0,
         token_count: testResult.tokenCount?.total || 0,
         cost: calculateCost(modelId, testResult.tokenCount),
+        prompt: prompt, // Save the prompt in the test case result
         metrics: {
           error: testResult.error,
           tokenCounts: testResult.tokenCount,
