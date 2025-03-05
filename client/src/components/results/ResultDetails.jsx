@@ -148,136 +148,55 @@ const ResultDetails = () => {
       return null;
     }
     
-    // Debug log to understand the structure
-    console.log('Looking for test case:', testCaseId);
-    console.log('Result structure:', {
-      hasTestCases: !!result.test_cases,
-      testCasesType: result.test_cases ? typeof result.test_cases : 'N/A',
-      hasBenchmarkConfigs: !!result.benchmark_configs,
-      benchmarkConfigsType: result.benchmark_configs ? typeof result.benchmark_configs : 'N/A',
-      benchmarkConfigsFields: result.benchmark_configs ? Object.keys(result.benchmark_configs) : [],
-      hasTestCasesInConfig: result.benchmark_configs && !!result.benchmark_configs.test_cases,
-      testCasesInConfigType: result.benchmark_configs && result.benchmark_configs.test_cases ?
-        typeof result.benchmark_configs.test_cases : 'N/A'
-    });
+    // First check if we have the prompt directly in test_case_results
+    if (result.test_case_results && Array.isArray(result.test_case_results)) {
+      const testCaseResult = result.test_case_results.find(tcr =>
+        tcr.test_case_id === testCaseId && tcr.prompt
+      );
+      
+      if (testCaseResult && testCaseResult.prompt) {
+        return {
+          id: testCaseId,
+          name: testCaseId,
+          prompt: testCaseResult.prompt
+        };
+      }
+    }
     
-    // Try to find test case in various possible locations
-    
-    // 1. Check in result.test_cases array
+    // Fallback to checking in result.test_cases array
     if (result.test_cases && Array.isArray(result.test_cases)) {
-      console.log('Checking in result.test_cases array:', result.test_cases.length);
       const testCase = result.test_cases.find(tc => tc.id === testCaseId);
       if (testCase) {
-        console.log('Found test case in result.test_cases:', testCase);
         return testCase;
       }
     }
     
-    // 2. Check in benchmark_configs.test_cases (which is a JSON field)
+    // Fallback to checking in benchmark_configs.test_cases
     if (result.benchmark_configs && result.benchmark_configs.test_cases) {
-      console.log('Checking in benchmark_configs.test_cases');
       try {
         // If it's already an array, use it directly
         if (Array.isArray(result.benchmark_configs.test_cases)) {
-          console.log('benchmark_configs.test_cases is an array:', result.benchmark_configs.test_cases.length);
           const testCase = result.benchmark_configs.test_cases.find(tc => tc.id === testCaseId);
           if (testCase) {
-            console.log('Found test case in benchmark_configs.test_cases array:', testCase);
             return testCase;
           }
         }
         // If it's a string, try to parse it as JSON
         else if (typeof result.benchmark_configs.test_cases === 'string') {
-          console.log('benchmark_configs.test_cases is a string, parsing as JSON');
           const testCasesArray = JSON.parse(result.benchmark_configs.test_cases);
           if (Array.isArray(testCasesArray)) {
-            console.log('Parsed JSON is an array:', testCasesArray.length);
             const testCase = testCasesArray.find(tc => tc.id === testCaseId);
             if (testCase) {
-              console.log('Found test case in parsed JSON array:', testCase);
               return testCase;
             }
           }
-        } else {
-          console.log('benchmark_configs.test_cases is neither array nor string:',
-            typeof result.benchmark_configs.test_cases);
         }
       } catch (err) {
         console.error('Error parsing test_cases JSON:', err);
       }
     }
     
-    // 3. Check in model_results for test case info
-    if (result.model_results) {
-      console.log('Checking in model_results:', Object.keys(result.model_results));
-      for (const modelId in result.model_results) {
-        const modelResult = result.model_results[modelId];
-        console.log(`Checking model ${modelId}:`, {
-          hasTestResults: !!modelResult.testResults,
-          testResultsType: modelResult.testResults ? typeof modelResult.testResults : 'N/A',
-          hasTestCaseId: modelResult.testResults && !!modelResult.testResults[testCaseId]
-        });
-        
-        if (modelResult.testResults && modelResult.testResults[testCaseId]) {
-          const testResult = modelResult.testResults[testCaseId];
-          console.log(`Found test result for ${testCaseId} in model ${modelId}:`, {
-            hasPrompt: !!testResult.prompt,
-            promptType: testResult.prompt ? typeof testResult.prompt : 'N/A'
-          });
-          
-          if (testResult.prompt) {
-            console.log('Using prompt from model_results.testResults');
-            return {
-              id: testCaseId,
-              name: testCaseId,
-              prompt: testResult.prompt
-            };
-          }
-        }
-      }
-    }
-    
-    // 4. Check in test_case_results for prompt information
-    if (result.test_case_results && Array.isArray(result.test_case_results)) {
-      console.log('Checking in test_case_results array:', result.test_case_results.length);
-      
-      // First look for metrics.prompt
-      const testCaseResult = result.test_case_results.find(tcr =>
-        tcr.test_case_id === testCaseId && tcr.metrics && tcr.metrics.prompt
-      );
-      
-      if (testCaseResult && testCaseResult.metrics && testCaseResult.metrics.prompt) {
-        console.log('Found prompt in test_case_results.metrics.prompt');
-        return {
-          id: testCaseId,
-          name: testCaseId,
-          prompt: testCaseResult.metrics.prompt
-        };
-      }
-      
-      // If we still don't have the prompt, check if we can find it in the first test case result
-      const firstResult = result.test_case_results.find(tcr => tcr.test_case_id === testCaseId);
-      if (firstResult) {
-        console.log('Found matching test case result:', {
-          hasInput: !!firstResult.input,
-          inputType: firstResult.input ? typeof firstResult.input : 'N/A',
-          hasMetrics: !!firstResult.metrics,
-          metricsKeys: firstResult.metrics ? Object.keys(firstResult.metrics) : []
-        });
-        
-        if (firstResult.input) {
-          console.log('Using input field from test_case_results');
-          return {
-            id: testCaseId,
-            name: testCaseId,
-            prompt: firstResult.input
-          };
-        }
-      }
-    }
-    
     // Default fallback
-    console.log('No prompt found for test case, using default fallback');
     return { id: testCaseId, name: testCaseId, prompt: 'Prompt not available' };
   };
 
@@ -926,7 +845,9 @@ const ResultDetails = () => {
                               Prompt
                             </h5>
                             <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 shadow-inner text-dark-600 h-48 overflow-auto">
-                              <pre className="whitespace-pre-wrap text-sm">{testCase?.prompt || 'Prompt not available'}</pre>
+                              <pre className="whitespace-pre-wrap text-sm">
+                                {testCaseResult.prompt || testCase?.prompt || 'Prompt not available'}
+                              </pre>
                             </div>
                           </div>
                           
