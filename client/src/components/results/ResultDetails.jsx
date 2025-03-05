@@ -303,7 +303,17 @@ const ResultDetails = () => {
   return (
     <div className="p-6 animate-fadeIn">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-        <h1 className="text-3xl font-bold text-dark-600">Benchmark Result</h1>
+        <div className="flex items-center">
+          <Link to="/results" className="mr-4 btn btn-secondary">
+            <span className="flex items-center">
+              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              Back
+            </span>
+          </Link>
+          <h1 className="text-3xl font-bold text-dark-600">Benchmark Result</h1>
+        </div>
         <div className="flex space-x-3">
           <a
             href={`/api/results/${result.id}/export?format=json`}
