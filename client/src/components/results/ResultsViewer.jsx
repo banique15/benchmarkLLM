@@ -278,8 +278,8 @@ const ResultsViewer = () => {
       {/* Delete Confirmation Modal */}
       {showDeleteConfirmation && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
-            <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden">
+            <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gradient-to-r from-red-50 to-white rounded-t-2xl">
               <h3 className="font-semibold text-lg text-dark-600">Confirm Delete</h3>
               <button
                 type="button"
@@ -308,7 +308,7 @@ const ResultsViewer = () => {
               <div className="flex justify-end space-x-3">
                 <button
                   type="button"
-                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors"
                   onClick={() => setShowDeleteConfirmation(false)}
                   disabled={isDeleting}
                 >
@@ -316,7 +316,7 @@ const ResultsViewer = () => {
                 </button>
                 <button
                   type="button"
-                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors flex items-center"
+                  className="px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors flex items-center"
                   onClick={handleDeleteResult}
                   disabled={isDeleting}
                 >
