@@ -20,6 +20,7 @@ const BenchmarkCreator = () => {
   const [modalSelectedTestCases, setModalSelectedTestCases] = useState([]);
   const [showResetConfirmation, setShowResetConfirmation] = useState(false);
   const [showNewTestCaseModal, setShowNewTestCaseModal] = useState(false);
+  const [testCaseCounter, setTestCaseCounter] = useState(1);
   const [newTestCase, setNewTestCase] = useState({
     name: 'New Test Case',
     category: TASK_CATEGORIES[0].id,
@@ -77,7 +78,7 @@ const BenchmarkCreator = () => {
 
   // Add a new test case
   const handleAddTestCase = () => {
-    const newId = `test-case-${Date.now()}`;
+    const newId = `test-case-${testCaseCounter}`;
     setTestCases([
       ...testCases,
       {
@@ -85,6 +86,9 @@ const BenchmarkCreator = () => {
         ...newTestCase
       }
     ]);
+    
+    // Increment the counter for the next test case
+    setTestCaseCounter(testCaseCounter + 1);
     
     // Reset the new test case form and close the modal
     setNewTestCase({
@@ -879,9 +883,9 @@ const BenchmarkCreator = () => {
                       // Apply the selected test cases
                       const selectedDefaultTestCases = DEFAULT_TEST_CASES
                         .filter(testCase => modalSelectedTestCases.includes(testCase.id))
-                        .map(testCase => ({
+                        .map((testCase, index) => ({
                           ...testCase,
-                          id: `${testCase.id}-${Date.now()}`
+                          id: `${testCase.id}-${testCaseCounter + index}`
                         }));
                       
                       // Remove any existing default test cases and add the newly selected ones
@@ -890,6 +894,9 @@ const BenchmarkCreator = () => {
                       );
                       
                       setTestCases([...customTestCases, ...selectedDefaultTestCases]);
+                      
+                      // Update the counter for future test cases
+                      setTestCaseCounter(testCaseCounter + selectedDefaultTestCases.length);
                       
                       // Close the modal
                       const defaultTestCasesModal = document.getElementById('defaultTestCasesModal');
@@ -1033,8 +1040,10 @@ const BenchmarkCreator = () => {
                             className="p-1 text-gray-500 hover:text-gray-700 rounded hover:bg-gray-100 transition-colors"
                             onClick={() => {
                               // Duplicate test case
-                              const newTestCase = {...testCase, id: `test-case-${Date.now()}`};
+                              const newTestCase = {...testCase, id: `test-case-${testCaseCounter}`};
                               setTestCases([...testCases, newTestCase]);
+                              // Increment the counter for the next test case
+                              setTestCaseCounter(testCaseCounter + 1);
                             }}
                             title="Duplicate test case"
                           >
