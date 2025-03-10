@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getBenchmarkConfigById } from '../../services/api';
-import { runBenchmark, getBenchmarkStatus } from '../../services/openrouter';
+import { runBenchmark, getBenchmarkStatus } from '../../services/langchain';
 
 const BenchmarkRunner = () => {
   const { id } = useParams();
