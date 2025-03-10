@@ -1,5 +1,5 @@
 import supabase from '../supabase.js';
-import openRouterService from './openrouter.js';
+import langchainService from './langchain-service.js';
 
 // Create a new benchmark result
 export const createBenchmarkResult = async (benchmarkConfig) => {
@@ -76,8 +76,8 @@ const processBenchmark = async (benchmarkConfig, resultId, apiKey) => {
           totalTests: test_cases.length,
         });
         
-        // Run the test
-        const testResult = await openRouterService.runModelTest(
+        // Run the test using LangChain
+        const testResult = await langchainService.runModelTest(
           modelId,
           testCase.prompt,
           modelConfig.parameters,

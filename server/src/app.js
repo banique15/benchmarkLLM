@@ -7,9 +7,11 @@ import { rateLimit } from 'express-rate-limit';
 
 // Import routes
 import openRouterRoutes from './routes/openrouter.js';
+import langchainRoutes from './routes/langchain.js';
 import benchmarkRoutes from './routes/benchmark.js';
 import configRoutes from './routes/config.js';
 import resultRoutes from './routes/result.js';
+import evaluationRoutes from './routes/evaluation.js';
 
 // Load environment variables
 dotenv.config();
@@ -64,9 +66,11 @@ app.use('/api', apiLimiter);
 
 // Define routes
 app.use('/api/openrouter', openRouterRoutes);
+app.use('/api/langchain', langchainRoutes);
 app.use('/api/benchmarks', benchmarkRoutes);
 app.use('/api/configs', configRoutes);
 app.use('/api/results', resultRoutes);
+app.use('/api/evaluation', evaluationRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

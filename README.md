@@ -1,6 +1,6 @@
 # LLM Benchmark
 
-A web application for benchmarking Large Language Models (LLMs) using the OpenRouter API.
+A web application for benchmarking Large Language Models (LLMs) using the OpenRouter API and LangChain.
 
 ## Features
 
@@ -11,6 +11,9 @@ A web application for benchmarking Large Language Models (LLMs) using the OpenRo
 - Export results in multiple formats
 - Real-time benchmarking with actual API calls to OpenRouter
 - API key validation and testing
+- Advanced prompt management with LangChain templates
+- Sophisticated evaluation of model outputs
+- Standardized model interface via LangChain
 
 ## Project Structure
 
@@ -29,6 +32,7 @@ A web application for benchmarking Large Language Models (LLMs) using the OpenRo
 - OpenRouter API key
 - Modern web browser with localStorage enabled (cookies and site data saving must be allowed)
 - Docker and Docker Compose (optional, for containerized setup)
+- LangChain dependencies (installed automatically with `npm install`)
 
 ### Installation
 
@@ -129,6 +133,17 @@ localStorage.removeItem('test');
 If this returns "test" without errors, localStorage is working correctly.
 - You can clear your API key from localStorage at any time
 
+## LangChain Integration
+
+The application now includes LangChain integration for enhanced benchmarking capabilities:
+
+- **Standardized Model Interface**: Unified API for working with different LLM providers
+- **Enhanced Prompt Management**: Structured prompting with templates for different task types
+- **Evaluation Chains**: Sophisticated evaluation of model outputs based on multiple criteria
+- **Future Extensibility**: Foundation for adding agents, memory, and document loaders
+
+For more details on the LangChain integration, see [LANGCHAIN.md](LANGCHAIN.md).
+
 ## Development
 
 ### Client
@@ -150,9 +165,11 @@ npm run dev
 
 The server is a Node.js/Express application that:
 - Proxies requests to the OpenRouter API
+- Provides LangChain-based model interactions
 - Interacts with the Supabase database
 - Processes benchmark results
 - Handles API key validation and testing
+- Evaluates model outputs using LangChain
 
 To start the server in development mode:
 ```
