@@ -29,13 +29,44 @@ const Layout = () => {
                 <line x1="12" y1="22.08" x2="12" y2="12"></line>
               </svg>
             </div>
-            <h1 className="text-xl font-bold text-dark-600">LLM Benchmark</h1>
+            <div className="flex items-center">
+              <h1 className="text-xl font-bold text-dark-600">LLM Benchmark</h1>
+              <span
+                className="ml-1 text-sm font-bold bg-gradient-to-r from-indigo-500 to-purple-600 text-transparent bg-clip-text transform hover:scale-105 transition-all duration-300 tracking-wide"
+                style={{
+                  animation: "elegant-pulse 3s ease-in-out infinite",
+                  display: "inline-block",
+                  position: "relative",
+                  top: "-2px"
+                }}
+              >
+                <style>
+                  {`
+                    @keyframes elegant-pulse {
+                      0% {
+                        filter: drop-shadow(0 0 1px rgba(79, 70, 229, 0.3));
+                        opacity: 0.9;
+                      }
+                      50% {
+                        filter: drop-shadow(0 0 2px rgba(79, 70, 229, 0.8));
+                        opacity: 1;
+                      }
+                      100% {
+                        filter: drop-shadow(0 0 1px rgba(79, 70, 229, 0.3));
+                        opacity: 0.9;
+                      }
+                    }
+                  `}
+                </style>
+                PLUS
+              </span>
+            </div>
           </div>
           <nav className="flex items-center space-x-6">
             <NavLink to="/" className={navLinkClass} end>
               Dashboard
             </NavLink>
-            <NavLink to="/benchmarks/create" className={navLinkClass}>
+            <NavLink to="/benchmarks" className={navLinkClass}>
               Create Benchmark
             </NavLink>
             <NavLink to="/results" className={navLinkClass}>
@@ -56,7 +87,7 @@ const Layout = () => {
         <div className="container mx-auto px-6">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="text-gray-500 text-sm mb-4 md:mb-0">
-              &copy; {new Date().getFullYear()} LLM Benchmark. All rights reserved.
+              &copy; {new Date().getFullYear()} LLM Benchmark PLUS. All rights reserved.
             </div>
             <div className="flex space-x-4">
               <a href="#" className="text-primary-600 hover:text-primary-700 text-sm">Privacy Policy</a>

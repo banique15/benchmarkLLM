@@ -114,11 +114,18 @@ class OpenRouterModel {
       if (error.response?.status === 401 || error.response?.status === 403) {
         throw new Error(`OpenRouter API authentication error: ${error.response.data?.error || 'Invalid API key or insufficient permissions'}`);
       } else if (error.response?.status === 429) {
-        throw new Error(`OpenRouter API rate limit exceeded: ${error.response.data?.error || 'Too many requests'}`);
-      } else if (error.response?.data?.error?.includes('insufficient_quota')) {
-        throw new Error(`OpenRouter API insufficient credits: ${error.response.data.error}`);
+        throw new Error(`OpenRouter API rate limit exceeded: ${error.response.data?.error?.message || error.response.data?.error || 'Too many requests'}`);
+      } else if (error.response?.data?.error?.message?.includes('insufficient_quota')) {
+        throw new Error(`OpenRouter API insufficient credits: ${error.response.data.error.message}`);
+      } else if (error.response?.data?.error?.message?.includes('data policy')) {
+        // Handle data policy error specifically
+        throw new Error(`OpenRouter API data policy error: ${error.response.data.error.message}. Please visit https://openrouter.ai/settings/privacy to update your data policy settings.`);
       } else if (error.response?.data?.error) {
-        throw new Error(`OpenRouter API error: ${error.response.data.error}`);
+        // Handle both string and object error formats
+        const errorMessage = typeof error.response.data.error === 'object'
+          ? error.response.data.error.message || JSON.stringify(error.response.data.error)
+          : error.response.data.error;
+        throw new Error(`OpenRouter API error: ${errorMessage}`);
       } else {
         throw new Error(`OpenRouter API error: ${error.message}`);
       }
@@ -384,10 +391,36 @@ export const generateChatCompletion = async (model, messages, options = {}, apiK
   }
 };
 
+/**
+ * Generate text using LangChain with a simple prompt
+ * @param {string} prompt - The prompt text
+ * @param {Object} options - Model parameters including model, temperature, max_tokens
+ * @param {string} apiKey - API key (optional, will use environment variable if not provided)
+ * @returns {Promise<string>} - The generated text
+ */
+export const generateWithLangchain = async (prompt, options = {}, apiKey = process.env.OPENROUTER_API_KEY) => {
+  try {
+    console.log('Generating text with LangChain');
+    
+    // Create a model instance
+    const model = options.model || "openai/gpt-4-turbo";
+    const llm = getModelInstance(model, options, apiKey);
+    
+    // Call the model directly
+    const response = await llm.invoke({ input: prompt });
+    
+    return response;
+  } catch (error) {
+    console.error('Error generating text with LangChain:', error.message);
+    throw error;
+  }
+};
+
 export default {
   getAvailableModels,
   generateCompletion,
   generateChatCompletion,
   runModelTest,
-  getModelInstance
+  getModelInstance,
+  generateWithLangchain
 };

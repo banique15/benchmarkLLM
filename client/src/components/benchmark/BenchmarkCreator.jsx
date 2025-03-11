@@ -462,7 +462,7 @@ const BenchmarkCreator = () => {
                       // Show modal
                       const defaultTestCasesModal = document.getElementById('defaultTestCasesModal');
                       if (defaultTestCasesModal) {
-                        defaultTestCasesModal.classList.remove('hidden');
+                        defaultTestCasesModal.style.display = 'flex';
                       }
                     }}
                   >
@@ -699,7 +699,7 @@ const BenchmarkCreator = () => {
           )}
           
           {/* Default Test Cases Modal */}
-          <div id="defaultTestCasesModal" className="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div id="defaultTestCasesModal" className="fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4" style={{ display: 'none' }}>
             <div className="bg-white rounded-2xl shadow-xl max-w-4xl w-full max-h-[80vh] flex flex-col overflow-hidden">
               <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gradient-to-r from-blue-50 to-white rounded-t-2xl">
                 <div className="flex items-center">
@@ -719,7 +719,7 @@ const BenchmarkCreator = () => {
                   onClick={() => {
                     const defaultTestCasesModal = document.getElementById('defaultTestCasesModal');
                     if (defaultTestCasesModal) {
-                      defaultTestCasesModal.classList.add('hidden');
+                      defaultTestCasesModal.style.display = 'none';
                     }
                   }}
                 >
@@ -865,7 +865,7 @@ const BenchmarkCreator = () => {
                     onClick={() => {
                       const defaultTestCasesModal = document.getElementById('defaultTestCasesModal');
                       if (defaultTestCasesModal) {
-                        defaultTestCasesModal.classList.add('hidden');
+                        defaultTestCasesModal.style.display = 'none';
                       }
                     }}
                   >
@@ -901,7 +901,7 @@ const BenchmarkCreator = () => {
                       // Close the modal
                       const defaultTestCasesModal = document.getElementById('defaultTestCasesModal');
                       if (defaultTestCasesModal) {
-                        defaultTestCasesModal.classList.add('hidden');
+                        defaultTestCasesModal.style.display = 'none';
                       }
                     }}
                   >
@@ -979,7 +979,7 @@ const BenchmarkCreator = () => {
                     // Show modal
                     const defaultTestCasesModal = document.getElementById('defaultTestCasesModal');
                     if (defaultTestCasesModal) {
-                      defaultTestCasesModal.classList.remove('hidden');
+                      defaultTestCasesModal.style.display = 'flex';
                     }
                   }}
                 >
@@ -1339,13 +1339,13 @@ const BenchmarkCreator = () => {
         <button
           type="button"
           className="btn btn-secondary mr-3"
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/benchmarks')}
         >
           <span className="flex items-center">
             <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
-            Cancel
+            Back to Selection
           </span>
         </button>
         <button

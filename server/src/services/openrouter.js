@@ -348,8 +348,18 @@ export const validateApiKey = async (apiKey) => {
   }
 };
 
+/**
+ * Get available models from OpenRouter (alias for getAvailableModels)
+ * @param {string} apiKey - OpenRouter API key
+ * @returns {Promise<Array>} - List of available models
+ */
+export const getOpenRouterModels = async (apiKey = process.env.OPENROUTER_API_KEY) => {
+  return getAvailableModels(apiKey);
+};
+
 export default {
   getAvailableModels,
+  getOpenRouterModels,
   generateCompletion,
   generateChatCompletion,
   runModelTest,

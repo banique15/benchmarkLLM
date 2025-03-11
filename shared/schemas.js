@@ -36,12 +36,27 @@ export const MetricConfigSchema = z.object({
   weight: z.number().optional(),
 });
 
+// Advanced benchmark options schema
+export const AdvancedBenchmarkOptionsSchema = z.object({
+  maxModels: z.number().int().positive().optional(),
+  testCaseCount: z.number().int().positive().optional(),
+  prioritizeCost: z.boolean().optional(),
+  domainSpecific: z.boolean().optional(),
+  includeReasoning: z.boolean().optional(),
+});
+
 // Benchmark configuration schema
 export const BenchmarkConfigSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
-  test_cases: z.array(TestCaseSchema).min(1, 'At least one test case is required'),
+  benchmark_type: z.enum(['basic', 'advanced']).default('basic'),
+  topic: z.string().optional(),
+  advanced_options: z.union([AdvancedBenchmarkOptionsSchema, z.record(z.any())]).optional(),
+  test_cases: z.union([
+    z.array(TestCaseSchema).min(1, 'At least one test case is required'),
+    z.string(), // For JSON string representation
+  ]),
   model_configs: z.array(ModelConfigSchema).min(1, 'At least one model configuration is required'),
   metric_configs: z.array(MetricConfigSchema).optional(),
   created_at: z.string().optional(),
@@ -60,6 +75,8 @@ export const TestCaseResultSchema = z.object({
   token_count: z.number().int(),
   cost: z.number(),
   prompt: z.string().optional(),
+  domain_expertise_score: z.number().min(0).max(1).optional(),
+  accuracy_score: z.number().min(0).max(1).optional(),
   metrics: z.record(z.any()).optional(),
 });
 
@@ -122,6 +139,47 @@ export const BenchmarkRunRequestSchema = z.object({
   apiKey: ApiKeySchema,
 });
 
+// Model ranking schema
+export const ModelRankingSchema = z.object({
+  id: z.string().optional(),
+  benchmark_result_id: z.string(),
+  model_id: z.string(),
+  overall_rank: z.number().int().positive(),
+  performance_rank: z.number().int().positive(),
+  cost_efficiency_rank: z.number().int().positive(),
+  domain_expertise_rank: z.number().int().positive(),
+  score: z.number().min(0).max(1),
+  speed_level: z.number().int().min(1).max(5).optional(),
+  cost_level: z.number().int().min(1).max(5).optional(),
+  created_at: z.string().optional(),
+});
+
+// Advanced benchmark analysis schema
+export const AdvancedAnalysisSchema = z.object({
+  rankings: z.array(ModelRankingSchema),
+  summary: z.record(z.any()).optional(),
+  costBreakdown: z.array(z.object({
+    model_id: z.string(),
+    totalCost: z.number(),
+    costPerTestCase: z.number(),
+    costEfficiencyRank: z.number().int().positive(),
+    overallRank: z.number().int().positive(),
+  })).optional(),
+  domainInsights: z.array(z.object({
+    model_id: z.string(),
+    domainExpertiseRank: z.number().int().positive(),
+    overallRank: z.number().int().positive(),
+    strengths: z.array(z.object({
+      category: z.string(),
+      score: z.number().min(0).max(1),
+    })),
+    weaknesses: z.array(z.object({
+      category: z.string(),
+      score: z.number().min(0).max(1),
+    })),
+  })).optional(),
+});
+
 export default {
   TestCaseSchema,
   ModelParametersSchema,
@@ -135,4 +193,7 @@ export default {
   ChatCompletionRequestSchema,
   CompletionRequestSchema,
   BenchmarkRunRequestSchema,
+  AdvancedBenchmarkOptionsSchema,
+  ModelRankingSchema,
+  AdvancedAnalysisSchema,
 };

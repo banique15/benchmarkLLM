@@ -219,7 +219,8 @@ const processBenchmark = async (benchmarkConfig, resultId, apiKey, apiKeyStatus 
               testResult.error.includes('credit') ||
               testResult.error.includes('capacity') ||
               testResult.error.includes('quota') ||
-              testResult.error.includes('rate limit');
+              testResult.error.includes('rate limit') ||
+              testResult.error.includes('data policy');
               
             if (isApiKeyError) {
               // Check if this is specifically a credit-related error
@@ -310,7 +311,8 @@ const processBenchmark = async (benchmarkConfig, resultId, apiKey, apiKeyStatus 
             testError.message.includes('credit') ||
             testError.message.includes('capacity') ||
             testError.message.includes('quota') ||
-            testError.message.includes('rate limit');
+            testError.message.includes('rate limit') ||
+            testError.message.includes('data policy');
             
           if (isApiKeyError) {
             // Check if this is specifically a credit-related error
@@ -365,7 +367,8 @@ const processBenchmark = async (benchmarkConfig, resultId, apiKey, apiKeyStatus 
                           error.message.includes('credit') ||
                           error.message.includes('capacity') ||
                           error.message.includes('quota') ||
-                          error.message.includes('rate limit');
+                          error.message.includes('rate limit') ||
+                          error.message.includes('data policy');
     
     // Check if this is specifically a credit-related error
     const isCreditError =

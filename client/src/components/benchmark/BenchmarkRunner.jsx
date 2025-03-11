@@ -103,7 +103,33 @@ const BenchmarkRunner = () => {
       // Check for API key errors first, regardless of status
       if (status.api_key_error) {
         console.error(`Benchmark has API key error: ${status.api_key_error}`);
-        setError(`API key error: ${status.api_key_error}`);
+        
+        // Check for specific error types and provide more helpful messages
+        if (status.api_key_error.includes('data policy')) {
+          setError(
+            <div>
+              <p>OpenRouter Data Policy Error: No endpoints found matching your data policy.</p>
+              <p className="mt-2">
+                Please visit{' '}
+                <a
+                  href="https://openrouter.ai/settings/privacy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:text-blue-800 underline"
+                >
+                  OpenRouter Privacy Settings
+                </a>{' '}
+                to update your data policy settings.
+              </p>
+              <p className="mt-2 text-sm text-gray-600">
+                You need to enable "Allow models to see my prompts" and "Allow models to store my prompts" for the benchmark to work.
+              </p>
+            </div>
+          );
+        } else {
+          setError(`API key error: ${status.api_key_error}`);
+        }
+        
         setProgress({
           status: 'failed',
           progress: 0,
