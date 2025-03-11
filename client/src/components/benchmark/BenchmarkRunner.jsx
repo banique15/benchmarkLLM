@@ -95,9 +95,23 @@ const BenchmarkRunner = () => {
         totalTests: status.status_details?.totalTests,
         currentModel: status.status_details?.currentModel,
         currentTest: status.status_details?.currentTest,
+        api_key_error: status.api_key_error || 'None',
       });
       
       setBenchmarkResult(status);
+      
+      // Check for API key errors first, regardless of status
+      if (status.api_key_error) {
+        console.error(`Benchmark has API key error: ${status.api_key_error}`);
+        setError(`API key error: ${status.api_key_error}`);
+        setProgress({
+          status: 'failed',
+          progress: 0,
+          totalTests: 100,
+        });
+        setIsLoading(false);
+        return; // Stop polling
+      }
       
       if (status.status === 'running') {
         setProgress({

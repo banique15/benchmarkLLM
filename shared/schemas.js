@@ -59,6 +59,7 @@ export const TestCaseResultSchema = z.object({
   latency: z.number(),
   token_count: z.number().int(),
   cost: z.number(),
+  prompt: z.string().optional(),
   metrics: z.record(z.any()).optional(),
 });
 
@@ -74,6 +75,11 @@ export const BenchmarkResultSchema = z.object({
   error: z.string().optional(),
   public_id: z.string().optional(),
   test_case_results: z.array(TestCaseResultSchema).optional(),
+  // API key status fields
+  api_key_valid: z.boolean().optional(),
+  api_key_credits: z.number().optional(),
+  api_key_limit: z.number().optional(),
+  api_key_error: z.string().optional(),
 });
 
 // OpenRouter API key schema

@@ -251,9 +251,107 @@ export const runModelTest = async (model, prompt, options = {}, apiKey) => {
   }
 };
 
+// Validate API key and check credits
+export const validateApiKey = async (apiKey) => {
+  try {
+    console.log('Validating API key:', apiKey ? `${apiKey.substring(0, 4)}...${apiKey.substring(apiKey.length - 4)}` : 'No API key provided');
+    
+    if (!apiKey) {
+      return {
+        valid: false,
+        error: 'API key is required'
+      };
+    }
+    
+    // Create headers for the request
+    const headers = {
+      'Content-Type': 'application/json',
+      'HTTP-Referer': process.env.CLIENT_URL || 'http://localhost:5173',
+      'X-Title': 'LLM Benchmark',
+      'Authorization': `Bearer ${apiKey}`
+    };
+    
+    // Make a request to the OpenRouter API to check the key
+    const response = await axios.get('https://openrouter.ai/api/v1/auth/key', {
+      headers
+    });
+    
+    console.log('API key validation response:', {
+      status: response.status,
+      statusText: response.statusText
+    });
+    
+    // Log the full response for debugging
+    console.log('API key validation response data:', JSON.stringify(response.data, null, 2));
+    
+    // Extract credit information from the response
+    // OpenRouter API returns data in different formats depending on the endpoint
+    let credits = null;
+    let limit = null;
+    
+    // Try to extract credit information from different possible formats
+    if (response.data.credits !== undefined) {
+      credits = response.data.credits;
+    } else if (response.data.data?.usage !== undefined) {
+      // The /auth/key endpoint returns usage instead of credits
+      credits = 1000 - (response.data.data.usage * 1000); // Convert usage to available credits
+    }
+    
+    if (response.data.limit !== undefined) {
+      limit = response.data.limit;
+    } else if (response.data.data?.limit !== undefined) {
+      limit = response.data.data.limit;
+    }
+    
+    // Check if we have enough credits for a typical request
+    // If we can't determine credits, we need to make a test call to check
+    const hasCredits = credits === null ? true : credits >= 500;
+    
+    console.log('Credit check results:', {
+      credits,
+      limit,
+      hasCredits,
+      creditInfoProvided: credits !== null,
+      usage: response.data.data?.usage
+    });
+    
+    return {
+      valid: true,
+      credits,
+      limit,
+      hasCredits,
+      data: response.data
+    };
+  } catch (error) {
+    console.error('Error validating API key:', error.response?.data || error.message);
+    console.error('Error details:', {
+      status: error.response?.status,
+      statusText: error.response?.statusText
+    });
+    
+    // Determine the specific error
+    let errorMessage = 'API key validation failed';
+    
+    if (error.response) {
+      if (error.response.status === 401 || error.response.status === 403) {
+        errorMessage = 'Invalid API key';
+      } else if (error.response.data?.error) {
+        errorMessage = error.response.data.error;
+      }
+    }
+    
+    return {
+      valid: false,
+      error: errorMessage,
+      details: error.response?.data || error.message
+    };
+  }
+};
+
 export default {
   getAvailableModels,
   generateCompletion,
   generateChatCompletion,
   runModelTest,
+  validateApiKey
 };

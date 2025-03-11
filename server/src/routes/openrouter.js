@@ -162,33 +162,47 @@ router.get('/test-api-key', extractApiKey, async (req, res, next) => {
       });
     }
     
-    // Make a direct request to the OpenRouter API to test the API key
     try {
-      // First, try to get the models list as a simple test
-      const headers = {
-        'Authorization': `Bearer ${req.apiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': process.env.CLIENT_URL || 'http://localhost:5173',
-        'X-Title': 'LLM Benchmark',
-      };
+      // Use the validateApiKey function from openRouterService
+      const validationResult = await openRouterService.validateApiKey(req.apiKey);
       
-      console.log('Making request to OpenRouter API with headers:', Object.keys(headers));
-      
-      const response = await axios.get('https://openrouter.ai/api/v1/models', {
-        headers,
+      console.log('API key validation result:', {
+        valid: validationResult.valid,
+        hasCredits: validationResult.hasCredits,
+        credits: validationResult.credits,
+        error: validationResult.error || 'None'
       });
       
-      console.log('API key test response:', {
-        status: response.status,
-        statusText: response.statusText,
-        data: response.data ? 'Data received' : 'No data',
-        modelCount: response.data?.data?.length || 0,
-      });
+      if (!validationResult.valid) {
+        return res.status(401).json({
+          valid: false,
+          message: validationResult.error || 'Invalid API key',
+          error: validationResult.error
+        });
+      }
+      
+      // Check if the API key has sufficient credits
+      // OpenRouter credits are used for each API call. Benchmarks can use a significant amount
+      // of credits depending on the number of models and test cases.
+      if (validationResult.credits !== null &&
+          validationResult.credits !== undefined &&
+          validationResult.credits < 500) {
+        return res.status(402).json({
+          valid: true,
+          hasCredits: false,
+          credits: validationResult.credits,
+          message: `Insufficient OpenRouter credits. You have ${validationResult.credits} credits available, but we recommend at least 500 credits to run benchmarks. Each benchmark test consumes credits based on the models used and the length of prompts. You can add more credits at https://openrouter.ai/credits`,
+          error: 'insufficient_credits'
+        });
+      }
       
       res.json({
         valid: true,
-        message: 'API key is valid',
-        modelCount: response.data?.data?.length || 0,
+        hasCredits: true,
+        credits: validationResult.credits,
+        message: validationResult.credits !== null ?
+          `API key is valid. You have ${validationResult.credits} OpenRouter credits available (recommended minimum: 500). These credits are consumed when running benchmarks, with each model call using a different amount based on the model and prompt length.` :
+          'API key is valid. OpenRouter credits are used when running benchmarks.',
       });
     } catch (error) {
       console.error('Error testing API key:', error);

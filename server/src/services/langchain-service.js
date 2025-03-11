@@ -47,6 +47,30 @@ class OpenRouterModel {
         max_tokens: this.maxTokens,
       });
       
+      // Log the response for debugging
+      console.log('OpenRouter response received:', {
+        status: response.status,
+        statusText: response.statusText,
+        hasChoices: Array.isArray(response.data?.choices) && response.data.choices.length > 0,
+        hasUsage: !!response.data?.usage
+      });
+      
+      // Check for error in the response data
+      if (response.data?.error) {
+        console.error('Error in OpenRouter response:', JSON.stringify(response.data.error, null, 2));
+        
+        // Check specifically for credit-related errors
+        if (response.data.error.code === 402 ||
+            (response.data.error.message &&
+             (response.data.error.message.includes('credits') ||
+              response.data.error.message.includes('capacity') ||
+              response.data.error.message.includes('quota')))) {
+          throw new Error(`OpenRouter API insufficient credits: ${response.data.error.message}`);
+        }
+        
+        throw new Error(`OpenRouter API error: ${response.data.error.message || JSON.stringify(response.data.error)}`);
+      }
+      
       // Store the response for later use
       this._lastResponse = response.data;
       
@@ -57,13 +81,47 @@ class OpenRouterModel {
         totalTokens: response.data.usage?.total_tokens || 0,
       };
       
+      // Check if the response has the expected format
+      if (!response.data.choices || !Array.isArray(response.data.choices) || response.data.choices.length === 0) {
+        console.error('Unexpected response format from OpenRouter:', JSON.stringify(response.data, null, 2));
+        throw new Error('Unexpected response format from OpenRouter: No choices returned');
+      }
+      
+      // Check if the first choice has a message with content
+      if (!response.data.choices[0].message || typeof response.data.choices[0].message.content !== 'string') {
+        console.error('Unexpected message format in OpenRouter response:', JSON.stringify(response.data.choices[0], null, 2));
+        throw new Error('Unexpected message format in OpenRouter response');
+      }
+      
       // Return the response in the expected format
       return {
         content: response.data.choices[0].message.content,
       };
     } catch (error) {
+      // Log detailed error information
       console.error('Error calling OpenRouter:', error.response?.data || error.message);
-      throw new Error(`OpenRouter API error: ${error.response?.data?.error || error.message}`);
+      
+      if (error.response) {
+        console.error('OpenRouter API error details:', {
+          status: error.response.status,
+          statusText: error.response.statusText,
+          data: error.response.data,
+          headers: Object.keys(error.response.headers || {})
+        });
+      }
+      
+      // Check for specific error conditions
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        throw new Error(`OpenRouter API authentication error: ${error.response.data?.error || 'Invalid API key or insufficient permissions'}`);
+      } else if (error.response?.status === 429) {
+        throw new Error(`OpenRouter API rate limit exceeded: ${error.response.data?.error || 'Too many requests'}`);
+      } else if (error.response?.data?.error?.includes('insufficient_quota')) {
+        throw new Error(`OpenRouter API insufficient credits: ${error.response.data.error}`);
+      } else if (error.response?.data?.error) {
+        throw new Error(`OpenRouter API error: ${error.response.data.error}`);
+      } else {
+        throw new Error(`OpenRouter API error: ${error.message}`);
+      }
     }
   }
   
