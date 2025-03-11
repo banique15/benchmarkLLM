@@ -40,7 +40,12 @@ router.post('/generate', async (req, res) => {
     // Select appropriate models based on the topic and options
     let modelConfigs;
     try {
-      modelConfigs = await selectModels(topic, options?.maxModels || 50, options?.prioritizeCost || false);
+      modelConfigs = await selectModels(
+        topic,
+        options?.maxModels || 50,
+        options?.prioritizeCost || false,
+        options?.selectedProviders || []
+      );
     } catch (modelError) {
       // Check if it's a credits error
       if (modelError.message && modelError.message.includes('credits')) {

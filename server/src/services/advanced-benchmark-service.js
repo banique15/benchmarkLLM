@@ -141,9 +141,10 @@ export const generateTestCases = async (topic, count = 20) => {
  * @param {string} topic - The topic or domain for the benchmark
  * @param {number} maxModels - Maximum number of models to select
  * @param {boolean} prioritizeCost - Whether to prioritize cost-effective models
+ * @param {Array} selectedProviders - Array of provider IDs to filter models by
  * @returns {Promise<Array>} - Array of selected model configurations
  */
-export const selectModels = async (topic, maxModels = 50, prioritizeCost = false) => {
+export const selectModels = async (topic, maxModels = 50, prioritizeCost = false, selectedProviders = []) => {
   try {
     // Get available models from OpenRouter
     const modelsResponse = await getOpenRouterModels();
@@ -151,6 +152,16 @@ export const selectModels = async (topic, maxModels = 50, prioritizeCost = false
     // Extract the models array from the response
     // The OpenRouter API returns models in the 'data' property
     let availableModels = modelsResponse.data || [];
+    
+    // Filter models by provider if selectedProviders is not empty
+    if (selectedProviders && selectedProviders.length > 0) {
+      console.log(`Filtering models by providers: ${selectedProviders.join(', ')}`);
+      availableModels = availableModels.filter(model => {
+        const provider = model.id.split('/')[0]; // Extract provider from id (e.g., "openai" from "openai/gpt-4")
+        return selectedProviders.includes(provider);
+      });
+      console.log(`After filtering, ${availableModels.length} models remain`);
+    }
     
     if (!Array.isArray(availableModels)) {
       console.error('Invalid models response format, trying to extract data property:', modelsResponse);
@@ -162,25 +173,57 @@ export const selectModels = async (topic, maxModels = 50, prioritizeCost = false
       } else {
         // If still not an array, create a fallback array with some common models
         console.warn('Creating fallback models array');
-        availableModels = [
+        const fallbackModels = [
           { id: 'openai/gpt-3.5-turbo', description: 'GPT-3.5 Turbo' },
           { id: 'anthropic/claude-3-haiku', description: 'Claude 3 Haiku' },
           { id: 'google/gemini-pro', description: 'Gemini Pro' },
           { id: 'meta-llama/llama-3-8b-instruct', description: 'Llama 3 8B' },
           { id: 'mistralai/mistral-7b-instruct', description: 'Mistral 7B' }
         ];
+        
+        // Filter fallback models by provider if selectedProviders is not empty
+        if (selectedProviders && selectedProviders.length > 0) {
+          availableModels = fallbackModels.filter(model => {
+            const provider = model.id.split('/')[0];
+            return selectedProviders.includes(provider);
+          });
+          
+          // If no models match the selected providers, use all fallback models
+          if (availableModels.length === 0) {
+            console.warn('No fallback models match selected providers, using all fallback models');
+            availableModels = fallbackModels;
+          }
+        } else {
+          availableModels = fallbackModels;
+        }
       }
     }
     
     if (availableModels.length === 0) {
       console.warn('No models found, using fallback models');
-      availableModels = [
+      const fallbackModels = [
         { id: 'openai/gpt-3.5-turbo', description: 'GPT-3.5 Turbo' },
         { id: 'anthropic/claude-3-haiku', description: 'Claude 3 Haiku' },
         { id: 'google/gemini-pro', description: 'Gemini Pro' },
         { id: 'meta-llama/llama-3-8b-instruct', description: 'Llama 3 8B' },
         { id: 'mistralai/mistral-7b-instruct', description: 'Mistral 7B' }
       ];
+      
+      // Filter fallback models by provider if selectedProviders is not empty
+      if (selectedProviders && selectedProviders.length > 0) {
+        availableModels = fallbackModels.filter(model => {
+          const provider = model.id.split('/')[0];
+          return selectedProviders.includes(provider);
+        });
+        
+        // If no models match the selected providers, use all fallback models
+        if (availableModels.length === 0) {
+          console.warn('No fallback models match selected providers, using all fallback models');
+          availableModels = fallbackModels;
+        }
+      } else {
+        availableModels = fallbackModels;
+      }
     }
     
     console.log(`Retrieved ${availableModels.length} available models`);

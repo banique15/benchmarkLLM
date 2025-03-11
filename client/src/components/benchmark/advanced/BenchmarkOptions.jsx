@@ -7,6 +7,27 @@ const BenchmarkOptions = ({ options, setOptions }) => {
       [field]: value
     });
   };
+  
+  // Common model providers
+  const providers = [
+    { id: 'openai', name: 'OpenAI' },
+    { id: 'anthropic', name: 'Anthropic' },
+    { id: 'google', name: 'Google' },
+    { id: 'meta-llama', name: 'Meta (Llama)' },
+    { id: 'mistralai', name: 'Mistral AI' },
+    { id: 'cohere', name: 'Cohere' },
+    { id: 'moonshotai', name: 'Moonshot AI' },
+    { id: 'cognitivecomputations', name: 'Cognitive Computations' }
+  ];
+  
+  const toggleProvider = (providerId) => {
+    const currentProviders = options.selectedProviders || [];
+    const newProviders = currentProviders.includes(providerId)
+      ? currentProviders.filter(id => id !== providerId)
+      : [...currentProviders, providerId];
+    
+    handleChange('selectedProviders', newProviders);
+  };
 
   return (
     <div className="card bg-white p-6 mb-6">
@@ -58,6 +79,35 @@ const BenchmarkOptions = ({ options, setOptions }) => {
           <label htmlFor="includeReasoning" className="ml-2 block text-sm text-dark-600">
             Include reasoning assessment (evaluate models' reasoning capabilities)
           </label>
+        </div>
+        
+        <div className="mt-4">
+          <label className="block text-sm font-medium text-dark-600 mb-2">
+            Filter by Model Providers
+          </label>
+          <div className="bg-gray-50 p-3 rounded-md border border-gray-200">
+            <p className="text-xs text-gray-500 mb-2">
+              {options.selectedProviders && options.selectedProviders.length > 0
+                ? 'Only models from selected providers will be included in the benchmark.'
+                : 'Select providers to filter models, or leave all unchecked to include all providers.'}
+            </p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {providers.map(provider => (
+                <div key={provider.id} className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id={`provider-${provider.id}`}
+                    className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                    checked={(options.selectedProviders || []).includes(provider.id)}
+                    onChange={() => toggleProvider(provider.id)}
+                  />
+                  <label htmlFor={`provider-${provider.id}`} className="ml-2 block text-sm text-dark-600">
+                    {provider.name}
+                  </label>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">

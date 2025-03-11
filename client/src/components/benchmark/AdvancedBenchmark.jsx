@@ -16,6 +16,7 @@ const AdvancedBenchmark = () => {
     prioritizeCost: false,
     domainSpecific: true,
     includeReasoning: false,
+    selectedProviders: [],  // Empty array means all providers are included
   });
   const [status, setStatus] = useState('idle');
   const [progress, setProgress] = useState(0);
