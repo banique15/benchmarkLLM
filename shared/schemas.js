@@ -43,6 +43,7 @@ export const AdvancedBenchmarkOptionsSchema = z.object({
   prioritizeCost: z.boolean().optional(),
   domainSpecific: z.boolean().optional(),
   includeReasoning: z.boolean().optional(),
+  selectedProviders: z.array(z.string()).optional(),
 });
 
 // Benchmark configuration schema
