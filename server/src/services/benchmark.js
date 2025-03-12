@@ -409,6 +409,14 @@ const processBenchmark = async (benchmarkConfig, resultId, apiKey, apiKeyStatus 
 // Save a test case result
 const saveTestCaseResult = async (benchmarkResultId, modelId, testCaseId, testResult, prompt) => {
   try {
+    // Evaluate domain expertise and accuracy scores if this is an advanced benchmark
+    const { domainExpertiseScore, accuracyScore } = await evaluateTestCaseScores(
+      benchmarkResultId,
+      testCaseId,
+      testResult.output || '',
+      prompt
+    );
+    
     const { error } = await supabase
       .from('test_case_results')
       .insert({
@@ -420,9 +428,13 @@ const saveTestCaseResult = async (benchmarkResultId, modelId, testCaseId, testRe
         token_count: testResult.tokenCount?.total || 0,
         cost: calculateCost(modelId, testResult.tokenCount),
         prompt: prompt, // Save the prompt in the test case result
+        domain_expertise_score: domainExpertiseScore,
+        accuracy_score: accuracyScore,
         metrics: {
           error: testResult.error,
           tokenCounts: testResult.tokenCount,
+          domainExpertiseScore,
+          accuracyScore
         },
       });
 
@@ -502,16 +514,247 @@ const calculateSummaryMetrics = (modelResults, testCases) => {
     const successfulTests = testResults.filter(result => !result.error).length;
     const successRate = testResults.length > 0 ? successfulTests / testResults.length : 0;
     
+    // Calculate average domain expertise score (if available)
+    const domainExpertiseScores = testResults
+      .map(result => result.metrics?.domainExpertiseScore)
+      .filter(score => score !== undefined && score !== null);
+    
+    const avgDomainExpertiseScore = domainExpertiseScores.length > 0
+      ? domainExpertiseScores.reduce((sum, score) => sum + score, 0) / domainExpertiseScores.length
+      : null;
+    
+    // Calculate average accuracy score (if available)
+    const accuracyScores = testResults
+      .map(result => result.metrics?.accuracyScore)
+      .filter(score => score !== undefined && score !== null);
+    
+    const avgAccuracyScore = accuracyScores.length > 0
+      ? accuracyScores.reduce((sum, score) => sum + score, 0) / accuracyScores.length
+      : null;
+    
     summary.models[modelId] = {
       avgLatency,
       totalTokens,
       totalCost,
       successRate,
       testCount: testResults.length,
+      avgDomainExpertiseScore,
+      avgAccuracyScore,
+      // Include counts of how many tests had these scores
+      domainExpertiseScoreCount: domainExpertiseScores.length,
+      accuracyScoreCount: accuracyScores.length
     };
   });
   
   return summary;
+};
+
+// Evaluate domain expertise and accuracy scores for a test case result
+const evaluateTestCaseScores = async (benchmarkResultId, testCaseId, output, prompt) => {
+  try {
+    // First, check if this is an advanced benchmark
+    const { data: benchmarkResult, error: benchmarkError } = await supabase
+      .from('benchmark_results')
+      .select('*, benchmark_configs(*)')
+      .eq('id', benchmarkResultId)
+      .single();
+    
+    if (benchmarkError) {
+      console.error('Error fetching benchmark result:', benchmarkError);
+      return { domainExpertiseScore: null, accuracyScore: null };
+    }
+    
+    // If this is not an advanced benchmark, return null scores
+    if (benchmarkResult.benchmark_configs?.benchmark_type !== 'advanced') {
+      return { domainExpertiseScore: null, accuracyScore: null };
+    }
+    
+    // Get the topic from the benchmark config
+    const topic = benchmarkResult.benchmark_configs?.topic;
+    if (!topic) {
+      console.warn('No topic found for advanced benchmark, cannot evaluate domain expertise');
+      return { domainExpertiseScore: null, accuracyScore: null };
+    }
+    
+    // Get the test case to access the expected output
+    let testCase;
+    if (benchmarkResult.benchmark_configs?.test_cases) {
+      let testCases;
+      if (typeof benchmarkResult.benchmark_configs.test_cases === 'string') {
+        try {
+          testCases = JSON.parse(benchmarkResult.benchmark_configs.test_cases);
+        } catch (e) {
+          console.error('Error parsing test cases:', e);
+          testCases = [];
+        }
+      } else {
+        testCases = benchmarkResult.benchmark_configs.test_cases;
+      }
+      
+      testCase = Array.isArray(testCases) ? testCases.find(tc => tc.id === testCaseId) : null;
+    }
+    
+    if (!testCase || !testCase.expectedOutput) {
+      console.warn(`No expected output found for test case ${testCaseId}, using simplified scoring`);
+      // Use simplified scoring when expected output is not available
+      return evaluateSimplifiedScores(output, prompt, topic);
+    }
+    
+    // Use expected output for more accurate scoring
+    return evaluateDetailedScores(output, testCase.expectedOutput, prompt, topic);
+  } catch (error) {
+    console.error('Error evaluating test case scores:', error);
+    return { domainExpertiseScore: null, accuracyScore: null };
+  }
+};
+
+// Evaluate scores using a simplified approach when expected output is not available
+const evaluateSimplifiedScores = (output, prompt, topic) => {
+  // Simple heuristics for scoring:
+  
+  // 1. Domain expertise: Check if the output contains domain-specific terminology related to the topic
+  const domainTerms = generateDomainTerms(topic);
+  let domainExpertiseScore = 0;
+  
+  if (domainTerms.length > 0) {
+    const termMatches = domainTerms.filter(term =>
+      output.toLowerCase().includes(term.toLowerCase())
+    ).length;
+    
+    domainExpertiseScore = Math.min(1, termMatches / Math.max(5, domainTerms.length / 2));
+  } else {
+    // If we couldn't generate domain terms, use a length-based heuristic
+    // Longer answers tend to contain more domain knowledge
+    domainExpertiseScore = Math.min(1, output.length / 1000);
+  }
+  
+  // 2. Accuracy: Without expected output, we can only use heuristics
+  // Check if the output directly addresses the prompt
+  const promptKeywords = prompt.toLowerCase()
+    .replace(/[^\w\s]/g, '')
+    .split(/\s+/)
+    .filter(word => word.length > 4); // Only consider words longer than 4 chars
+  
+  let keywordMatches = 0;
+  if (promptKeywords.length > 0) {
+    keywordMatches = promptKeywords.filter(keyword =>
+      output.toLowerCase().includes(keyword)
+    ).length;
+    
+    const accuracyScore = Math.min(1, keywordMatches / Math.max(3, promptKeywords.length / 2));
+    return { domainExpertiseScore, accuracyScore };
+  }
+  
+  // Fallback accuracy score
+  return { domainExpertiseScore, accuracyScore: 0.5 };
+};
+
+// Evaluate scores using a more detailed approach when expected output is available
+const evaluateDetailedScores = (output, expectedOutput, prompt, topic) => {
+  // 1. Domain expertise: Similar to simplified approach but also consider expected output
+  const domainTerms = generateDomainTerms(topic);
+  let domainExpertiseScore = 0;
+  
+  if (domainTerms.length > 0) {
+    const outputTermMatches = domainTerms.filter(term =>
+      output.toLowerCase().includes(term.toLowerCase())
+    ).length;
+    
+    const expectedTermMatches = domainTerms.filter(term =>
+      expectedOutput.toLowerCase().includes(term.toLowerCase())
+    ).length;
+    
+    // Compare the model's use of domain terms to the expected output
+    if (expectedTermMatches > 0) {
+      domainExpertiseScore = Math.min(1, outputTermMatches / expectedTermMatches);
+    } else {
+      domainExpertiseScore = Math.min(1, outputTermMatches / Math.max(5, domainTerms.length / 2));
+    }
+  } else {
+    // Fallback to comparing output length with expected output length
+    domainExpertiseScore = Math.min(1, output.length / Math.max(100, expectedOutput.length));
+  }
+  
+  // 2. Accuracy: Compare output with expected output
+  // Use a simple text similarity measure
+  const accuracyScore = calculateTextSimilarity(output, expectedOutput);
+  
+  return { domainExpertiseScore, accuracyScore };
+};
+
+// Generate domain-specific terms based on the topic
+const generateDomainTerms = (topic) => {
+  // This is a simplified approach. In a production system, you might use:
+  // 1. A pre-defined list of terms for common domains
+  // 2. An API call to an LLM to generate domain-specific terms
+  // 3. A knowledge graph or ontology lookup
+  
+  // For now, we'll use a simple mapping of common domains to terms
+  const domainTermsMap = {
+    'machine learning': ['algorithm', 'model', 'training', 'dataset', 'feature', 'classification', 'regression', 'neural network', 'overfitting', 'underfitting', 'hyperparameter', 'validation', 'accuracy', 'precision', 'recall', 'f1-score'],
+    'artificial intelligence': ['agent', 'reasoning', 'knowledge representation', 'planning', 'natural language processing', 'computer vision', 'robotics', 'expert system', 'machine learning', 'neural network', 'deep learning'],
+    'programming': ['function', 'variable', 'class', 'object', 'method', 'inheritance', 'polymorphism', 'encapsulation', 'algorithm', 'data structure', 'compiler', 'interpreter', 'debugging'],
+    'medicine': ['diagnosis', 'treatment', 'symptom', 'prognosis', 'pathology', 'etiology', 'anatomy', 'physiology', 'pharmacology', 'epidemiology', 'immunology', 'oncology', 'cardiology'],
+    'finance': ['asset', 'liability', 'equity', 'investment', 'portfolio', 'diversification', 'risk', 'return', 'dividend', 'interest', 'capital', 'stock', 'bond', 'derivative', 'hedge'],
+    'physics': ['force', 'energy', 'mass', 'velocity', 'acceleration', 'momentum', 'gravity', 'quantum', 'relativity', 'thermodynamics', 'electromagnetism', 'particle', 'wave'],
+    'chemistry': ['element', 'compound', 'molecule', 'atom', 'ion', 'reaction', 'catalyst', 'acid', 'base', 'organic', 'inorganic', 'polymer', 'solution', 'equilibrium'],
+    'biology': ['cell', 'organism', 'gene', 'protein', 'dna', 'rna', 'evolution', 'ecology', 'metabolism', 'photosynthesis', 'respiration', 'enzyme', 'hormone', 'neuron'],
+  };
+  
+  // Convert topic to lowercase for matching
+  const lowerTopic = topic.toLowerCase();
+  
+  // Check if the topic directly matches any of our predefined domains
+  for (const [domain, terms] of Object.entries(domainTermsMap)) {
+    if (lowerTopic.includes(domain)) {
+      return terms;
+    }
+  }
+  
+  // If no direct match, check for partial matches
+  const partialMatches = [];
+  for (const [domain, terms] of Object.entries(domainTermsMap)) {
+    const domainWords = domain.split(' ');
+    for (const word of domainWords) {
+      if (lowerTopic.includes(word) && word.length > 3) { // Only consider meaningful words
+        partialMatches.push(...terms);
+        break;
+      }
+    }
+  }
+  
+  if (partialMatches.length > 0) {
+    return [...new Set(partialMatches)]; // Remove duplicates
+  }
+  
+  // If no matches found, extract keywords from the topic itself
+  return lowerTopic
+    .replace(/[^\w\s]/g, '')
+    .split(/\s+/)
+    .filter(word => word.length > 4); // Only consider words longer than 4 chars
+};
+
+// Calculate text similarity between two strings
+const calculateTextSimilarity = (text1, text2) => {
+  // Convert to lowercase and remove punctuation
+  const processText = (text) => text.toLowerCase().replace(/[^\w\s]/g, '');
+  
+  const processed1 = processText(text1);
+  const processed2 = processText(text2);
+  
+  // Split into words
+  const words1 = processed1.split(/\s+/).filter(w => w.length > 0);
+  const words2 = processed2.split(/\s+/).filter(w => w.length > 0);
+  
+  // Count matching words
+  const wordSet2 = new Set(words2);
+  const matchingWords = words1.filter(word => wordSet2.has(word)).length;
+  
+  // Calculate Jaccard similarity
+  const uniqueWords = new Set([...words1, ...words2]);
+  const similarity = matchingWords / uniqueWords.size;
+  
+  return Math.min(1, similarity * 1.5); // Scale up slightly, but cap at 1
 };
 
 // Calculate cost based on model and token count

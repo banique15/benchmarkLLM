@@ -83,13 +83,13 @@ const BenchmarkOptions = ({ options, setOptions }) => {
         
         <div className="mt-4">
           <label className="block text-sm font-medium text-dark-600 mb-2">
-            Filter by Model Providers
+            Filter by Model Providers <span className="text-red-500">*</span>
           </label>
-          <div className="bg-gray-50 p-3 rounded-md border border-gray-200">
+          <div className={`bg-gray-50 p-3 rounded-md border ${options.selectedProviders && options.selectedProviders.length > 0 ? 'border-gray-200' : 'border-red-300'}`}>
             <p className="text-xs text-gray-500 mb-2">
               {options.selectedProviders && options.selectedProviders.length > 0
                 ? 'Only models from selected providers will be included in the benchmark.'
-                : 'Select providers to filter models, or leave all unchecked to include all providers.'}
+                : 'Please select at least one provider. This selection is required.'}
             </p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               {providers.map(provider => (
@@ -121,7 +121,7 @@ const BenchmarkOptions = ({ options, setOptions }) => {
               value={options.maxModels}
               onChange={(e) => handleChange('maxModels', parseInt(e.target.value))}
             >
-              {[3, 5, 10, 15, 20, 30, 40, 50].map((num) => (
+              {[2, 3, 5, 8, 10, 15].map((num) => (
                 <option key={num} value={num}>{num}</option>
               ))}
             </select>
@@ -138,7 +138,7 @@ const BenchmarkOptions = ({ options, setOptions }) => {
               value={options.testCaseCount}
               onChange={(e) => handleChange('testCaseCount', parseInt(e.target.value))}
             >
-              {[2, 3, 5, 10, 15, 20, 25, 30].map((num) => (
+              {[2, 3, 5, 8, 10, 12].map((num) => (
                 <option key={num} value={num}>{num}</option>
               ))}
             </select>

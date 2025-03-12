@@ -11,8 +11,8 @@ const AdvancedBenchmark = () => {
   const navigate = useNavigate();
   const [topic, setTopic] = useState('');
   const [options, setOptions] = useState({
-    maxModels: 10,  // Reduced from 50 to require less token capacity
-    testCaseCount: 5,  // Reduced from 20 to require less token capacity
+    maxModels: 5,  // Further reduced from 10 to require less token capacity
+    testCaseCount: 3,  // Further reduced from 5 to require less token capacity
     prioritizeCost: false,
     domainSpecific: true,
     includeReasoning: false,
@@ -41,6 +41,11 @@ const AdvancedBenchmark = () => {
     
     if (!apiKey) {
       setError('OpenRouter API key is required. Please set it in the Settings page.');
+      return;
+    }
+    
+    if (!options.selectedProviders || options.selectedProviders.length === 0) {
+      setError('Please select at least one model provider. This selection is required.');
       return;
     }
     

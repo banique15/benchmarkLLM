@@ -14,7 +14,7 @@ class OpenRouterModel {
     this.modelName = fields.modelName;
     this.apiKey = fields.openAIApiKey;
     this.temperature = fields.temperature || 0.7;
-    this.maxTokens = fields.maxTokens || 1000;
+    this.maxTokens = fields.maxTokens; // No default limit
     this._lastCallTokenUsage = null;
     this._lastResponse = null;
     
@@ -39,13 +39,20 @@ class OpenRouterModel {
     try {
       console.log(`Calling OpenRouter model ${this.modelName} with ${messages.length} messages`);
       
-      // Make the API request
-      const response = await this.client.post('/chat/completions', {
+      // Prepare request parameters
+      const requestParams = {
         model: this.modelName,
         messages,
         temperature: this.temperature,
-        max_tokens: this.maxTokens,
-      });
+      };
+      
+      // Only include max_tokens if it's defined
+      if (this.maxTokens !== undefined) {
+        requestParams.max_tokens = this.maxTokens;
+      }
+      
+      // Make the API request
+      const response = await this.client.post('/chat/completions', requestParams);
       
       // Log the response for debugging
       console.log('OpenRouter response received:', {
@@ -60,12 +67,16 @@ class OpenRouterModel {
         console.error('Error in OpenRouter response:', JSON.stringify(response.data.error, null, 2));
         
         // Check specifically for credit-related errors
+        // Log detailed error information for debugging
+        console.error('Detailed OpenRouter error:', JSON.stringify(response.data.error, null, 2));
+        
         if (response.data.error.code === 402 ||
             (response.data.error.message &&
              (response.data.error.message.includes('credits') ||
               response.data.error.message.includes('capacity') ||
               response.data.error.message.includes('quota')))) {
-          throw new Error(`OpenRouter API insufficient credits: ${response.data.error.message}`);
+          // This might be a rate limit or tier restriction rather than insufficient credits
+          throw new Error(`OpenRouter API request failed: ${response.data.error.message}. Please check your OpenRouter account settings or try a model with lower token requirements.`);
         }
         
         throw new Error(`OpenRouter API error: ${response.data.error.message || JSON.stringify(response.data.error)}`);
@@ -115,8 +126,13 @@ class OpenRouterModel {
         throw new Error(`OpenRouter API authentication error: ${error.response.data?.error || 'Invalid API key or insufficient permissions'}`);
       } else if (error.response?.status === 429) {
         throw new Error(`OpenRouter API rate limit exceeded: ${error.response.data?.error?.message || error.response.data?.error || 'Too many requests'}`);
-      } else if (error.response?.data?.error?.message?.includes('insufficient_quota')) {
-        throw new Error(`OpenRouter API insufficient credits: ${error.response.data.error.message}`);
+      } else if (error.response?.data?.error?.message?.includes('insufficient_quota') ||
+                error.response?.data?.error?.message?.includes('token capacity required')) {
+        // Log detailed error information for debugging
+        console.error('Detailed OpenRouter quota error:', JSON.stringify(error.response.data, null, 2));
+        
+        // This might be a rate limit, tier restriction, or model-specific limitation
+        throw new Error(`OpenRouter API request failed: ${error.response.data.error.message}. This may be due to tier restrictions rather than insufficient credits. Try using a different model or contact OpenRouter support.`);
       } else if (error.response?.data?.error?.message?.includes('data policy')) {
         // Handle data policy error specifically
         throw new Error(`OpenRouter API data policy error: ${error.response.data.error.message}. Please visit https://openrouter.ai/settings/privacy to update your data policy settings.`);
@@ -212,7 +228,7 @@ export const getModelInstance = (modelId, parameters = {}, apiKey) => {
   // Set up common parameters
   const modelParams = {
     temperature: parameters.temperature || 0.7,
-    maxTokens: parameters.max_tokens || 1000,
+    maxTokens: parameters.max_tokens, // No default limit
     modelName: modelId,
     openAIApiKey: apiKey,
   };

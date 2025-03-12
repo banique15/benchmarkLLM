@@ -36,6 +36,35 @@ const AdvancedResultsView = ({ benchmarkResult, benchmarkConfig }) => {
     loadAnalysis('general');
   }
   
+  // Debug function to check domain expertise data
+  const debugDomainExpertiseData = () => {
+    console.log('Checking domain expertise data propagation:');
+    console.log('Analysis object:', analysis);
+    
+    if (analysis?.rankings) {
+      console.log('Rankings count:', analysis.rankings.length);
+      console.log('First model domain expertise data:', {
+        model_id: analysis.rankings[0]?.model_id,
+        domain_expertise_rank: analysis.rankings[0]?.domain_expertise_rank,
+        domain_expertise_score: analysis.rankings[0]?.domain_expertise_score
+      });
+    }
+    
+    if (analysis?.domainInsights) {
+      console.log('Domain insights count:', analysis.domainInsights.length);
+      console.log('First model domain insights:', analysis.domainInsights[0]);
+    }
+    
+    if (analysis?.summary?.topModels) {
+      console.log('Top models count:', analysis.summary.topModels.length);
+      const firstModel = analysis.summary.topModels[0];
+      console.log('First top model domain expertise:', firstModel?.components?.domainExpertise);
+      console.log('First top model weighted domain expertise:', firstModel?.weightedComponents?.domainExpertise);
+    }
+    
+    return 'Domain expertise data checked - see console';
+  };
+  
   if (!analysis) {
     return (
       <div className="card bg-white p-6 mb-6">
@@ -108,6 +137,13 @@ const AdvancedResultsView = ({ benchmarkResult, benchmarkConfig }) => {
             onClick={() => loadAnalysis('domain')}
           >
             Domain
+          </button>
+          <button
+            className="px-3 py-1 text-sm rounded-md bg-purple-100 text-purple-700 hover:bg-purple-200"
+            onClick={debugDomainExpertiseData}
+            title="Check domain expertise data in console"
+          >
+            Debug Data
           </button>
         </div>
       </div>
@@ -207,11 +243,151 @@ const AdvancedResultsView = ({ benchmarkResult, benchmarkConfig }) => {
             <h3 className="text-lg font-semibold text-dark-600 mb-4">Analysis Summary</h3>
             
             {analysisType === 'general' && (
-              <div className="space-y-4">
+              <div className="space-y-6">
                 <p className="text-gray-700">
                   The benchmark evaluated {analysis.rankings.length} models on the topic: <span className="font-semibold">{benchmarkConfig.advanced_options?.topic || 'Unknown'}</span>.
                 </p>
                 
+                {/* Scoring Methodology Section */}
+                {analysis.summary?.scoringMethodology && (
+                  <div className="bg-white p-4 rounded-lg border border-gray-200 mb-4">
+                    <h4 className="font-medium text-dark-600 mb-3">Scoring Methodology</h4>
+                    <p className="text-sm text-gray-700 mb-3">{analysis.summary.scoringMethodology.description}</p>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                      <div>
+                        <h5 className="text-sm font-medium text-gray-600 mb-2">Weight Distribution</h5>
+                        <ul className="space-y-1">
+                          {analysis.summary.scoringMethodology.weights && Object.entries(analysis.summary.scoringMethodology.weights).map(([key, value]) => (
+                            <li key={key} className="text-sm flex items-center">
+                              <div className="w-2 h-2 rounded-full mr-2"
+                                style={{
+                                  backgroundColor:
+                                    key === 'accuracy' ? '#3B82F6' :
+                                    key === 'domainExpertise' ? '#8B5CF6' :
+                                    key === 'latency' ? '#10B981' :
+                                    '#F59E0B'
+                                }}></div>
+                              <span>{value}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                      
+                      <div>
+                        <h5 className="text-sm font-medium text-gray-600 mb-2">Normalization</h5>
+                        <ul className="space-y-1">
+                          {analysis.summary.scoringMethodology.normalization && Object.entries(analysis.summary.scoringMethodology.normalization).map(([key, value]) => (
+                            <li key={key} className="text-sm">
+                              <span className="font-medium">{key}:</span> {value}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-gray-50 p-3 rounded text-sm">
+                      <span className="font-medium">Formula:</span> {analysis.summary.scoringMethodology.formula}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Benchmark Stats */}
+                {analysis.summary?.benchmarkStats && (
+                  <div className="bg-white p-4 rounded-lg border border-gray-200 mb-4">
+                    <h4 className="font-medium text-dark-600 mb-3">Benchmark Statistics</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="text-center p-2 bg-blue-50 rounded-lg">
+                        <p className="text-xs text-gray-500">Models Tested</p>
+                        <p className="text-xl font-bold text-blue-600">{analysis.summary.benchmarkStats.modelCount}</p>
+                      </div>
+                      <div className="text-center p-2 bg-purple-50 rounded-lg">
+                        <p className="text-xs text-gray-500">Test Cases</p>
+                        <p className="text-xl font-bold text-purple-600">{analysis.summary.benchmarkStats.testCaseCount}</p>
+                      </div>
+                      <div className="text-center p-2 bg-green-50 rounded-lg">
+                        <p className="text-xs text-gray-500">Avg. Performance</p>
+                        <p className="text-xl font-bold text-green-600">{(analysis.summary.benchmarkStats.averageScores?.overall * 100).toFixed(0)}%</p>
+                      </div>
+                      <div className="text-center p-2 bg-yellow-50 rounded-lg">
+                        <p className="text-xs text-gray-500">Avg. Cost Level</p>
+                        <p className="text-xl font-bold text-yellow-600">{(analysis.summary.benchmarkStats.averageScores?.costEfficiency * 5).toFixed(1)}/5</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Top Models with Detailed Scores */}
+                <div className="mb-4">
+                  <h4 className="font-medium text-dark-600 mb-3">Top Models Performance Breakdown</h4>
+                  <div className="grid grid-cols-1 gap-4">
+                    {analysis.summary?.topModels && analysis.summary.topModels.map((model, index) => (
+                      <div key={model.model_id} className="bg-white p-4 rounded-lg border border-gray-200">
+                        <div className="flex justify-between items-center mb-3">
+                          <div className="flex items-center">
+                            <div className={`p-2 rounded-md ${index === 0 ? 'bg-yellow-100' : index === 1 ? 'bg-gray-100' : 'bg-amber-50'} mr-2`}>
+                              <span className={`font-bold text-lg ${index === 0 ? 'text-yellow-600' : index === 1 ? 'text-gray-600' : 'text-amber-600'}`}>
+                                #{model.rank}
+                              </span>
+                            </div>
+                            <span className="font-semibold text-dark-600">{model.model_id}</span>
+                          </div>
+                          <div className="flex items-center">
+                            <span className="text-sm font-medium bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                              Score: {(model.score * 100).toFixed(1)}%
+                            </span>
+                          </div>
+                        </div>
+                        
+                        {model.components && (
+                          <div className="mb-3">
+                            <h5 className="text-sm font-medium text-gray-600 mb-2">Component Scores</h5>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                              <div className="bg-blue-50 p-2 rounded">
+                                <p className="text-xs text-gray-500">Accuracy</p>
+                                <p className="font-medium text-blue-700">{(model.components.accuracy * 100).toFixed(1)}%</p>
+                              </div>
+                              <div className="bg-purple-50 p-2 rounded">
+                                <p className="text-xs text-gray-500">Domain Expertise</p>
+                                <p className="font-medium text-purple-700">{(model.components.domainExpertise * 100).toFixed(1)}%</p>
+                              </div>
+                              <div className="bg-green-50 p-2 rounded">
+                                <p className="text-xs text-gray-500">Latency</p>
+                                <p className="font-medium text-green-700">{model.components.latency.toFixed(0)} ms</p>
+                              </div>
+                              <div className="bg-yellow-50 p-2 rounded">
+                                <p className="text-xs text-gray-500">Cost</p>
+                                <p className="font-medium text-yellow-700">${model.components.cost.toFixed(4)}</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {model.weightedComponents && (
+                          <div>
+                            <h5 className="text-sm font-medium text-gray-600 mb-2">Score Contribution</h5>
+                            <div className="h-4 w-full bg-gray-200 rounded-full overflow-hidden">
+                              <div className="flex h-full">
+                                <div className="bg-blue-500 h-full" style={{ width: `${model.weightedComponents.accuracy * 100 / model.score}%` }}></div>
+                                <div className="bg-purple-500 h-full" style={{ width: `${model.weightedComponents.domainExpertise * 100 / model.score}%` }}></div>
+                                <div className="bg-green-500 h-full" style={{ width: `${model.weightedComponents.latency * 100 / model.score}%` }}></div>
+                                <div className="bg-yellow-500 h-full" style={{ width: `${model.weightedComponents.cost * 100 / model.score}%` }}></div>
+                              </div>
+                            </div>
+                            <div className="flex text-xs mt-1 text-gray-600 justify-between">
+                              <span>Accuracy: {(model.weightedComponents.accuracy * 100 / model.score).toFixed(0)}%</span>
+                              <span>Domain: {(model.weightedComponents.domainExpertise * 100 / model.score).toFixed(0)}%</span>
+                              <span>Speed: {(model.weightedComponents.latency * 100 / model.score).toFixed(0)}%</span>
+                              <span>Cost: {(model.weightedComponents.cost * 100 / model.score).toFixed(0)}%</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                {/* Category Winners */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="bg-white p-4 rounded-lg border border-gray-200">
                     <h4 className="font-medium text-dark-600 mb-2">Best Overall Model</h4>
@@ -221,21 +397,21 @@ const AdvancedResultsView = ({ benchmarkResult, benchmarkConfig }) => {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
                         </svg>
                       </div>
-                      <span className="font-semibold">{analysis.rankings[0]?.model_id || 'Unknown'}</span>
+                      <span className="font-semibold">{analysis.summary?.categoryWinners?.overall?.model_id || analysis.rankings[0]?.model_id || 'Unknown'}</span>
                     </div>
                     <div className="mt-2 flex items-center">
                       <div className="flex items-center">
                         {Array.from({ length: 5 }).map((_, i) => (
-                          <svg 
+                          <svg
                             key={i}
-                            className={`w-4 h-4 ${i < Math.round(analysis.rankings[0]?.score * 5) ? 'text-yellow-400' : 'text-gray-300'}`}
+                            className={`w-4 h-4 ${i < Math.round((analysis.summary?.categoryWinners?.overall?.score || analysis.rankings[0]?.score || 0) * 5) ? 'text-yellow-400' : 'text-gray-300'}`}
                             fill="currentColor"
                             viewBox="0 0 20 20"
                           >
                             <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                           </svg>
                         ))}
-                        <span className="ml-2 text-sm text-gray-600">{(analysis.rankings[0]?.score * 100).toFixed(0)}%</span>
+                        <span className="ml-2 text-sm text-gray-600">{((analysis.summary?.categoryWinners?.overall?.score || analysis.rankings[0]?.score || 0) * 100).toFixed(0)}%</span>
                       </div>
                     </div>
                   </div>
@@ -249,15 +425,19 @@ const AdvancedResultsView = ({ benchmarkResult, benchmarkConfig }) => {
                         </svg>
                       </div>
                       <span className="font-semibold">
-                        {analysis.rankings.sort((a, b) => a.cost_efficiency_rank - b.cost_efficiency_rank)[0]?.model_id || 'Unknown'}
+                        {analysis.summary?.categoryWinners?.costEfficiency?.model_id ||
+                         analysis.rankings.sort((a, b) => a.cost_efficiency_rank - b.cost_efficiency_rank)[0]?.model_id ||
+                         'Unknown'}
                       </span>
                     </div>
                     <div className="mt-2 flex items-center">
                       <div className="flex items-center">
                         {Array.from({ length: 5 }).map((_, i) => (
-                          <span 
+                          <span
                             key={i}
-                            className={`text-sm ${i < (analysis.rankings.sort((a, b) => a.cost_efficiency_rank - b.cost_efficiency_rank)[0]?.cost_level || 0) ? 'text-green-600' : 'text-gray-300'}`}
+                            className={`text-sm ${i < (analysis.summary?.categoryWinners?.costEfficiency?.costLevel ||
+                                                      analysis.rankings.sort((a, b) => a.cost_efficiency_rank - b.cost_efficiency_rank)[0]?.cost_level || 0)
+                                                      ? 'text-green-600' : 'text-gray-300'}`}
                           >
                             $
                           </span>
@@ -275,7 +455,9 @@ const AdvancedResultsView = ({ benchmarkResult, benchmarkConfig }) => {
                         </svg>
                       </div>
                       <span className="font-semibold">
-                        {analysis.rankings.sort((a, b) => a.domain_expertise_rank - b.domain_expertise_rank)[0]?.model_id || 'Unknown'}
+                        {analysis.summary?.categoryWinners?.domainExpertise?.model_id ||
+                         analysis.rankings.sort((a, b) => a.domain_expertise_rank - b.domain_expertise_rank)[0]?.model_id ||
+                         'Unknown'}
                       </span>
                     </div>
                     <div className="mt-2 text-sm text-gray-600">
@@ -330,49 +512,184 @@ const AdvancedResultsView = ({ benchmarkResult, benchmarkConfig }) => {
             )}
             
             {analysisType === 'domain' && analysis.domainInsights && (
-              <div className="space-y-4">
+              <div className="space-y-6">
                 <p className="text-gray-700">
-                  Domain expertise analysis shows how well each model performs in the specific topic area.
+                  Domain expertise analysis shows how well each model performs in the specific topic area: <span className="font-semibold">{benchmarkConfig.advanced_options?.topic || 'Unknown'}</span>.
                 </p>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {analysis.domainInsights.map((model) => (
-                    <div key={model.model_id} className="bg-white p-4 rounded-lg border border-gray-200">
-                      <h4 className="font-medium text-dark-600 mb-2">{model.model_id}</h4>
-                      
-                      <div className="mb-4">
-                        <h5 className="text-sm font-medium text-gray-500 mb-2">Strengths</h5>
-                        <div className="space-y-2">
-                          {model.strengths.map((strength, index) => (
-                            <div key={index} className="flex items-center">
-                              <div className="w-24 bg-gray-200 rounded-full h-2.5 mr-2">
-                                <div 
-                                  className="bg-green-600 h-2.5 rounded-full" 
-                                  style={{ width: `${strength.score * 100}%` }}
-                                ></div>
-                              </div>
-                              <span className="text-sm text-gray-600">{strength.category}</span>
-                            </div>
-                          ))}
-                        </div>
+                {/* Domain Analysis Summary */}
+                {analysis.domainAnalysisSummary && (
+                  <div className="bg-white p-4 rounded-lg border border-gray-200 mb-4">
+                    <h4 className="font-medium text-dark-600 mb-3">Domain Analysis Summary</h4>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                      <div>
+                        <h5 className="text-sm font-medium text-gray-600 mb-2">Top Performer</h5>
+                        {analysis.domainAnalysisSummary.topPerformer && (
+                          <div className="bg-purple-50 p-3 rounded">
+                            <p className="font-medium text-purple-800">{analysis.domainAnalysisSummary.topPerformer.model_id}</p>
+                            <p className="text-sm text-purple-600">Score: {(analysis.domainAnalysisSummary.topPerformer.score * 100).toFixed(0)}%</p>
+                            <p className="text-sm text-purple-600">Best in: {analysis.domainAnalysisSummary.topPerformer.topCategory}</p>
+                          </div>
+                        )}
                       </div>
                       
                       <div>
-                        <h5 className="text-sm font-medium text-gray-500 mb-2">Weaknesses</h5>
-                        <div className="space-y-2">
-                          {model.weaknesses.map((weakness, index) => (
-                            <div key={index} className="flex items-center">
-                              <div className="w-24 bg-gray-200 rounded-full h-2.5 mr-2">
-                                <div 
-                                  className="bg-red-600 h-2.5 rounded-full" 
-                                  style={{ width: `${weakness.score * 100}%` }}
-                                ></div>
-                              </div>
-                              <span className="text-sm text-gray-600">{weakness.category}</span>
-                            </div>
+                        <h5 className="text-sm font-medium text-gray-600 mb-2">Overall Statistics</h5>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="bg-blue-50 p-2 rounded">
+                            <p className="text-xs text-gray-500">Models Analyzed</p>
+                            <p className="font-medium text-blue-700">{analysis.domainAnalysisSummary.modelCount}</p>
+                          </div>
+                          <div className="bg-green-50 p-2 rounded">
+                            <p className="text-xs text-gray-500">Avg. Domain Score</p>
+                            <p className="font-medium text-green-700">{(analysis.domainAnalysisSummary.averageScore * 100).toFixed(0)}%</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Recommendations */}
+                    {analysis.domainAnalysisSummary.recommendations && (
+                      <div className="mb-4">
+                        <h5 className="text-sm font-medium text-gray-600 mb-2">Recommendations</h5>
+                        <div className="bg-yellow-50 p-3 rounded space-y-2">
+                          {analysis.domainAnalysisSummary.recommendations.map((rec, index) => (
+                            <p key={index} className="text-sm text-gray-700">
+                              <span className="font-medium">{rec.type === 'category' ? `${rec.category}: ` : `${rec.type.charAt(0).toUpperCase() + rec.type.slice(1)}: `}</span>
+                              {rec.recommendation}
+                            </p>
                           ))}
                         </div>
                       </div>
+                    )}
+                    
+                    {/* Category Analysis */}
+                    {analysis.domainAnalysisSummary.categoryAnalysis && (
+                      <div>
+                        <h5 className="text-sm font-medium text-gray-600 mb-2">Category Analysis</h5>
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avg. Score</th>
+                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Best Model</th>
+                              </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                              {analysis.domainAnalysisSummary.categoryAnalysis.map((cat, index) => (
+                                <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                  <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-700">{cat.category}</td>
+                                  <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-700">{(cat.averageScore * 100).toFixed(0)}%</td>
+                                  <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-700">{cat.bestModel}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {/* Individual Model Analysis */}
+                <h4 className="font-medium text-dark-600 mb-3">Model-by-Model Analysis</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {analysis.domainInsights.map((model) => (
+                    <div key={model.model_id} className="bg-white p-4 rounded-lg border border-gray-200">
+                      <div className="flex justify-between items-center mb-3">
+                        <h4 className="font-medium text-dark-600">{model.model_id}</h4>
+                        <span className="text-sm bg-purple-100 text-purple-800 px-2 py-1 rounded-full">
+                          Rank: #{model.domainExpertiseRank} | Score: {(model.domainExpertiseScore * 100).toFixed(0)}%
+                        </span>
+                      </div>
+                      
+                      {/* Domain Summary */}
+                      {model.domainSummary && (
+                        <div className="bg-gray-50 p-3 rounded mb-3 text-sm text-gray-700">
+                          {model.domainSummary}
+                        </div>
+                      )}
+                      
+                      {/* Metrics */}
+                      {model.metrics && (
+                        <div className="grid grid-cols-2 gap-2 mb-3">
+                          <div className="bg-blue-50 p-2 rounded">
+                            <p className="text-xs text-gray-500">Consistency</p>
+                            <p className="font-medium text-blue-700">{(model.metrics.consistencyScore * 100).toFixed(0)}%</p>
+                          </div>
+                          <div className="bg-green-50 p-2 rounded">
+                            <p className="text-xs text-gray-500">Categories</p>
+                            <p className="font-medium text-green-700">{model.metrics.categoryCount}</p>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Score Distribution */}
+                      {model.metrics?.scoreDistribution && (
+                        <div className="mb-3">
+                          <h5 className="text-xs font-medium text-gray-500 mb-1">Score Distribution</h5>
+                          <div className="flex h-4 rounded-full overflow-hidden">
+                            <div className="bg-green-500 h-full" style={{ width: `${model.metrics.scoreDistribution.excellent * 100 / Object.values(model.metrics.scoreDistribution).reduce((a, b) => a + b, 0)}%` }}></div>
+                            <div className="bg-blue-500 h-full" style={{ width: `${model.metrics.scoreDistribution.good * 100 / Object.values(model.metrics.scoreDistribution).reduce((a, b) => a + b, 0)}%` }}></div>
+                            <div className="bg-yellow-500 h-full" style={{ width: `${model.metrics.scoreDistribution.average * 100 / Object.values(model.metrics.scoreDistribution).reduce((a, b) => a + b, 0)}%` }}></div>
+                            <div className="bg-orange-500 h-full" style={{ width: `${model.metrics.scoreDistribution.poor * 100 / Object.values(model.metrics.scoreDistribution).reduce((a, b) => a + b, 0)}%` }}></div>
+                            <div className="bg-red-500 h-full" style={{ width: `${model.metrics.scoreDistribution.veryPoor * 100 / Object.values(model.metrics.scoreDistribution).reduce((a, b) => a + b, 0)}%` }}></div>
+                          </div>
+                          <div className="flex justify-between text-xs text-gray-500 mt-1">
+                            <span>Very Poor</span>
+                            <span>Excellent</span>
+                          </div>
+                        </div>
+                      )}
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <h5 className="text-sm font-medium text-gray-500 mb-2">Strengths</h5>
+                          <div className="space-y-2">
+                            {model.strengths.map((strength, index) => (
+                              <div key={index} className="flex items-center">
+                                <div className="w-24 bg-gray-200 rounded-full h-2.5 mr-2">
+                                  <div
+                                    className="bg-green-600 h-2.5 rounded-full"
+                                    style={{ width: `${strength.score * 100}%` }}
+                                  ></div>
+                                </div>
+                                <span className="text-sm text-gray-600">{strength.category}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <h5 className="text-sm font-medium text-gray-500 mb-2">Weaknesses</h5>
+                          <div className="space-y-2">
+                            {model.weaknesses.map((weakness, index) => (
+                              <div key={index} className="flex items-center">
+                                <div className="w-24 bg-gray-200 rounded-full h-2.5 mr-2">
+                                  <div
+                                    className="bg-red-600 h-2.5 rounded-full"
+                                    style={{ width: `${weakness.score * 100}%` }}
+                                  ></div>
+                                </div>
+                                <span className="text-sm text-gray-600">{weakness.category}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Sample Responses */}
+                      {model.strengths.length > 0 && model.strengths[0].sampleResponses && (
+                        <div className="mt-3">
+                          <h5 className="text-sm font-medium text-gray-500 mb-2">Sample Response</h5>
+                          <div className="bg-gray-50 p-2 rounded text-xs text-gray-700">
+                            <p className="font-medium">{model.strengths[0].sampleResponses[0]?.prompt}</p>
+                            <p className="mt-1">{model.strengths[0].sampleResponses[0]?.output}</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

@@ -20,7 +20,17 @@ export const generateTestCases = async (topic, count = 20) => {
       For each test case, include:
       1. A clear, specific prompt that tests knowledge or capabilities related to ${topic}
       2. The expected output or key points that should be included in a good response
-      3. A category for the test case (e.g., factual-knowledge, problem-solving, creative-writing, etc.)
+      3. A category for the test case using one of these standardized categories:
+         - factual-knowledge: Testing recall of facts and information
+         - problem-solving: Testing ability to solve problems or puzzles
+         - creative-writing: Testing creative and narrative abilities
+         - reasoning: Testing logical reasoning and inference
+         - technical-knowledge: Testing specialized technical information
+         - conceptual-understanding: Testing grasp of abstract concepts
+         - procedural-knowledge: Testing understanding of processes and procedures
+         - domain-specific-terminology: Testing knowledge of specialized vocabulary
+         - analytical-thinking: Testing ability to analyze complex information
+         - ethical-reasoning: Testing understanding of ethical considerations
       
       Format your response as a JSON array of objects with the following structure:
       [
@@ -39,14 +49,16 @@ export const generateTestCases = async (topic, count = 20) => {
       - Test both general knowledge and specialized expertise
       - Avoid ambiguous questions with multiple valid answers
       - Are challenging but fair
+      - Use a balanced mix of the standardized categories listed above
       
       Return only the JSON array with no additional text.
     `;
 
+    // Try using a model with fewer token capacity restrictions
     const response = await generateWithLangchain(prompt, {
-      model: "openai/gpt-3.5-turbo",  // Using GPT-3.5 which requires less token capacity
+      model: "anthropic/claude-3-haiku",  // Using Claude 3 Haiku which may have different token capacity restrictions
       temperature: 0.7,
-      max_tokens: 2000  // Reduced max tokens
+      max_tokens: 2048  // Set a reasonable limit to avoid exceeding available credits
     });
 
     // Parse the response as JSON
@@ -106,10 +118,33 @@ export const generateTestCases = async (topic, count = 20) => {
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
         if (line.endsWith('?') || line.match(/^\d+\.\s+/)) {
+          // Assign a more specific category based on the content of the question
+          let category = 'factual-knowledge'; // Default category
+          
+          if (line.toLowerCase().includes('solve') || line.toLowerCase().includes('calculate')) {
+            category = 'problem-solving';
+          } else if (line.toLowerCase().includes('explain') || line.toLowerCase().includes('why')) {
+            category = 'reasoning';
+          } else if (line.toLowerCase().includes('write') || line.toLowerCase().includes('create')) {
+            category = 'creative-writing';
+          } else if (line.toLowerCase().includes('analyze') || line.toLowerCase().includes('compare')) {
+            category = 'analytical-thinking';
+          } else if (line.toLowerCase().includes('ethical') || line.toLowerCase().includes('should')) {
+            category = 'ethical-reasoning';
+          } else if (line.toLowerCase().includes('process') || line.toLowerCase().includes('steps')) {
+            category = 'procedural-knowledge';
+          } else if (line.toLowerCase().includes('concept') || line.toLowerCase().includes('theory')) {
+            category = 'conceptual-understanding';
+          } else if (line.toLowerCase().includes('technical') || line.toLowerCase().includes('specification')) {
+            category = 'technical-knowledge';
+          } else if (line.toLowerCase().includes('term') || line.toLowerCase().includes('definition')) {
+            category = 'domain-specific-terminology';
+          }
+          
           testCases.push({
             id: uuidv4(),
             name: `Test case ${testCases.length + 1}`,
-            category: 'general',
+            category: category,
             prompt: line,
             expectedOutput: ''
           });
@@ -316,8 +351,8 @@ export const selectModels = async (topic, maxModels = 50, prioritizeCost = false
           "reason": "Brief explanation of selection",
           "parameters": {
             "temperature": 0.7,
-            "top_p": 1,
-            "max_tokens": 1000
+            "top_p": 1
+            // No max_tokens limit
           }
         }
       ]
@@ -328,10 +363,11 @@ export const selectModels = async (topic, maxModels = 50, prioritizeCost = false
       Return only the JSON array with no additional text.
     `;
 
+    // Try using a model with fewer token capacity restrictions
     const response = await generateWithLangchain(prompt, {
-      model: "openai/gpt-3.5-turbo",  // Using GPT-3.5 which requires less token capacity
+      model: "anthropic/claude-3-haiku",  // Using Claude 3 Haiku which may have different token capacity restrictions
       temperature: 0.7,
-      max_tokens: 2000  // Reduced max tokens
+      max_tokens: 1536  // Set a reasonable limit to avoid exceeding available credits
     });
 
     // Parse the response as JSON
@@ -391,8 +427,8 @@ export const selectModels = async (topic, maxModels = 50, prioritizeCost = false
           reason: 'Automatically selected as fallback',
           parameters: {
             temperature: 0.7,
-            top_p: 1,
-            max_tokens: 1000
+            top_p: 1
+            // No max_tokens limit
           },
           enabled: true // Add enabled property for BenchmarkRunner.jsx
         }));
@@ -430,6 +466,158 @@ export const selectModels = async (topic, maxModels = 50, prioritizeCost = false
     console.error('Error selecting models:', error);
     throw error;
   }
+};
+
+/**
+ * Generate a domain summary for a model
+ * @param {string} modelId - The model ID
+ * @param {number} overallScore - The overall domain expertise score
+ * @param {number} consistencyScore - The consistency score
+ * @param {Array} strengths - The model's strengths
+ * @param {Array} weaknesses - The model's weaknesses
+ * @param {string} topic - The benchmark topic
+ * @returns {string} - A summary of the model's domain expertise
+ */
+const generateDomainSummary = (modelId, overallScore, consistencyScore, strengths, weaknesses, topic) => {
+  // Format the model name for display
+  const modelName = modelId.split('/').pop().replace(/-/g, ' ').replace(/(\b\w)/g, match => match.toUpperCase());
+  
+  // Generate a performance descriptor based on the score
+  let performanceLevel = 'poor';
+  if (overallScore >= 0.8) {
+    performanceLevel = 'excellent';
+  } else if (overallScore >= 0.6) {
+    performanceLevel = 'good';
+  } else if (overallScore >= 0.4) {
+    performanceLevel = 'average';
+  } else if (overallScore >= 0.2) {
+    performanceLevel = 'below average';
+  }
+  
+  // Generate a consistency descriptor
+  let consistencyLevel = 'inconsistent';
+  if (consistencyScore >= 0.8) {
+    consistencyLevel = 'highly consistent';
+  } else if (consistencyScore >= 0.6) {
+    consistencyLevel = 'consistent';
+  } else if (consistencyScore >= 0.4) {
+    consistencyLevel = 'moderately consistent';
+  }
+  
+  // Format strengths and weaknesses
+  const strengthsList = strengths.map(s => `${s.category} (${(s.score * 100).toFixed(0)}%)`).join(', ');
+  const weaknessesList = weaknesses.map(w => `${w.category} (${(w.score * 100).toFixed(0)}%)`).join(', ');
+  
+  // Generate the summary
+  return `${modelName} demonstrates ${performanceLevel} domain expertise in ${topic} with an overall score of ${(overallScore * 100).toFixed(0)}%. 
+The model is ${consistencyLevel} across different test categories. 
+Key strengths: ${strengthsList}. 
+Areas for improvement: ${weaknessesList}.`;
+};
+
+/**
+ * Analyze categories across all models
+ * @param {Array} domainInsights - The domain insights for all models
+ * @returns {Object} - Analysis of categories across models
+ */
+const analyzeCategoriesAcrossModels = (domainInsights) => {
+  // Collect all categories
+  const allCategories = new Set();
+  const categoryScores = {};
+  
+  // Gather all categories and scores
+  domainInsights.forEach(model => {
+    model.strengths.concat(model.weaknesses).forEach(item => {
+      allCategories.add(item.category);
+      
+      if (!categoryScores[item.category]) {
+        categoryScores[item.category] = [];
+      }
+      
+      categoryScores[item.category].push({
+        model_id: model.model_id,
+        score: item.score
+      });
+    });
+  });
+  
+  // Calculate average scores and find best model for each category
+  const categoryAnalysis = Array.from(allCategories).map(category => {
+    const scores = categoryScores[category];
+    const avgScore = scores.reduce((sum, item) => sum + item.score, 0) / scores.length;
+    const bestModel = scores.sort((a, b) => b.score - a.score)[0];
+    
+    return {
+      category,
+      averageScore: avgScore,
+      bestModel: bestModel.model_id,
+      bestModelScore: bestModel.score,
+      modelCount: scores.length
+    };
+  });
+  
+  // Sort by average score
+  categoryAnalysis.sort((a, b) => b.averageScore - a.averageScore);
+  
+  return categoryAnalysis;
+};
+
+/**
+ * Generate domain-specific recommendations
+ * @param {Array} domainInsights - The domain insights for all models
+ * @param {string} topic - The benchmark topic
+ * @returns {Array} - Recommendations for model selection
+ */
+const generateDomainRecommendations = (domainInsights, topic) => {
+  // Find the best overall model
+  const bestOverall = domainInsights.sort((a, b) => a.domainExpertiseRank - b.domainExpertiseRank)[0];
+  
+  // Find the most consistent model
+  const mostConsistent = [...domainInsights].sort((a, b) => b.metrics.consistencyScore - a.metrics.consistencyScore)[0];
+  
+  // Find models that excel in specific categories
+  const categorySpecialists = [];
+  const processedCategories = new Set();
+  
+  domainInsights.forEach(model => {
+    if (model.strengths.length > 0) {
+      const topStrength = model.strengths[0];
+      
+      // Only add if this category hasn't been covered yet and the score is good
+      if (!processedCategories.has(topStrength.category) && topStrength.score >= 0.7) {
+        categorySpecialists.push({
+          model_id: model.model_id,
+          category: topStrength.category,
+          score: topStrength.score
+        });
+        
+        processedCategories.add(topStrength.category);
+      }
+    }
+  });
+  
+  // Generate recommendations
+  const recommendations = [
+    {
+      type: 'general',
+      recommendation: `For general ${topic} tasks, ${bestOverall.model_id} is recommended with an overall domain expertise score of ${(bestOverall.domainExpertiseScore * 100).toFixed(0)}%.`
+    },
+    {
+      type: 'consistency',
+      recommendation: `For consistent performance across all ${topic} categories, ${mostConsistent.model_id} is recommended with a consistency score of ${(mostConsistent.metrics.consistencyScore * 100).toFixed(0)}%.`
+    }
+  ];
+  
+  // Add category-specific recommendations
+  categorySpecialists.forEach(specialist => {
+    recommendations.push({
+      type: 'category',
+      category: specialist.category,
+      recommendation: `For ${specialist.category} tasks within ${topic}, ${specialist.model_id} is recommended with a score of ${(specialist.score * 100).toFixed(0)}%.`
+    });
+  });
+  
+  return recommendations;
 };
 
 /**
@@ -591,6 +779,8 @@ const generateRankings = async (benchmarkResult) => {
         performance_rank: overallRank, // Same as overall for now
         cost_efficiency_rank: costEfficiencyRank,
         domain_expertise_rank: domainExpertiseRank,
+        domain_expertise_score: score.domain_expertise_score, // Add domain expertise score
+        accuracy_score: score.accuracy_score, // Add accuracy score
         score: score.overall_score,
         speed_level: score.speed_level,
         cost_level: score.cost_level,
@@ -630,6 +820,8 @@ const generateRankings = async (benchmarkResult) => {
             performance_rank: index + 1,
             cost_efficiency_rank: index + 1,
             domain_expertise_rank: index + 1,
+            domain_expertise_score: 0.5, // Default domain expertise score
+            accuracy_score: 0.5, // Default accuracy score
             score: 0.5, // Default score
             speed_level: 3, // Default middle level
             cost_level: 3, // Default middle level
@@ -765,13 +957,64 @@ const analyzeDomainExpertise = async (benchmarkResult, rankings) => {
       }
     }
     
-    // If no categories were found, create default categories
+    // If no categories were found, create default categories based on test case content
     if (Object.keys(testCaseCategories).length === 0) {
-      console.log('No test case categories found, using default categories');
+      console.log('No test case categories found, creating categories based on content');
+      
+      // Standard categories
+      const standardCategories = [
+        'factual-knowledge',
+        'problem-solving',
+        'creative-writing',
+        'reasoning',
+        'technical-knowledge',
+        'conceptual-understanding',
+        'procedural-knowledge',
+        'domain-specific-terminology',
+        'analytical-thinking',
+        'ethical-reasoning'
+      ];
+      
+      // Assign categories based on test case content
       testCaseIds.forEach((id, index) => {
-        testCaseCategories[id] = `Category ${index + 1}`;
+        // Find the test case in the results
+        const testCase = benchmarkResult.test_case_results.find(tcr => tcr.test_case_id === id);
+        
+        if (testCase && testCase.prompt) {
+          const prompt = testCase.prompt.toLowerCase();
+          
+          // Determine category based on prompt content
+          if (prompt.includes('solve') || prompt.includes('calculate')) {
+            testCaseCategories[id] = 'problem-solving';
+          } else if (prompt.includes('explain') || prompt.includes('why')) {
+            testCaseCategories[id] = 'reasoning';
+          } else if (prompt.includes('write') || prompt.includes('create')) {
+            testCaseCategories[id] = 'creative-writing';
+          } else if (prompt.includes('analyze') || prompt.includes('compare')) {
+            testCaseCategories[id] = 'analytical-thinking';
+          } else if (prompt.includes('ethical') || prompt.includes('should')) {
+            testCaseCategories[id] = 'ethical-reasoning';
+          } else if (prompt.includes('process') || prompt.includes('steps')) {
+            testCaseCategories[id] = 'procedural-knowledge';
+          } else if (prompt.includes('concept') || prompt.includes('theory')) {
+            testCaseCategories[id] = 'conceptual-understanding';
+          } else if (prompt.includes('technical') || prompt.includes('specification')) {
+            testCaseCategories[id] = 'technical-knowledge';
+          } else if (prompt.includes('term') || prompt.includes('definition')) {
+            testCaseCategories[id] = 'domain-specific-terminology';
+          } else {
+            // Default to factual-knowledge or distribute evenly among standard categories
+            testCaseCategories[id] = standardCategories[index % standardCategories.length];
+          }
+        } else {
+          // If no prompt is found, assign a default category
+          testCaseCategories[id] = standardCategories[index % standardCategories.length];
+        }
       });
     }
+    
+    // Get topic information
+    const topic = benchmarkResult.benchmark_configs?.topic || 'Unknown';
     
     // Generate domain insights for each model
     const domainInsights = modelIds.map(modelId => {
@@ -802,7 +1045,18 @@ const analyzeDomainExpertise = async (benchmarkResult, rankings) => {
       // Calculate average score by category
       const categoryScores = Object.entries(resultsByCategory).map(([category, results]) => {
         const avgScore = results.reduce((sum, tcr) => sum + (tcr.domain_expertise_score || 0), 0) / results.length;
-        return { category, score: avgScore };
+        const sampleResponses = results.slice(0, 2).map(tcr => ({
+          prompt: tcr.prompt,
+          output: tcr.output.substring(0, 150) + (tcr.output.length > 150 ? '...' : ''),
+          score: tcr.domain_expertise_score || 0
+        }));
+        
+        return {
+          category,
+          score: avgScore,
+          testCount: results.length,
+          sampleResponses
+        };
       });
       
       // Sort by score
@@ -812,12 +1066,41 @@ const analyzeDomainExpertise = async (benchmarkResult, rankings) => {
       const strengths = categoryScores.slice(0, Math.min(3, categoryScores.length));
       const weaknesses = [...categoryScores].sort((a, b) => a.score - b.score).slice(0, Math.min(3, categoryScores.length));
       
+      // Calculate overall domain expertise metrics
+      const overallDomainScore = modelResults.reduce((sum, tcr) => sum + (tcr.domain_expertise_score || 0), 0) / modelResults.length;
+      const scoreDistribution = {
+        excellent: modelResults.filter(tcr => (tcr.domain_expertise_score || 0) >= 0.8).length,
+        good: modelResults.filter(tcr => (tcr.domain_expertise_score || 0) >= 0.6 && (tcr.domain_expertise_score || 0) < 0.8).length,
+        average: modelResults.filter(tcr => (tcr.domain_expertise_score || 0) >= 0.4 && (tcr.domain_expertise_score || 0) < 0.6).length,
+        poor: modelResults.filter(tcr => (tcr.domain_expertise_score || 0) >= 0.2 && (tcr.domain_expertise_score || 0) < 0.4).length,
+        veryPoor: modelResults.filter(tcr => (tcr.domain_expertise_score || 0) < 0.2).length
+      };
+      
+      // Calculate consistency score (lower standard deviation = more consistent)
+      const scores = modelResults.map(tcr => tcr.domain_expertise_score || 0);
+      const mean = scores.reduce((sum, score) => sum + score, 0) / scores.length;
+      const variance = scores.reduce((sum, score) => sum + Math.pow(score - mean, 2), 0) / scores.length;
+      const stdDev = Math.sqrt(variance);
+      const consistencyScore = Math.max(0, 1 - stdDev);
+      
       return {
         model_id: modelId,
         domainExpertiseRank: ranking.domain_expertise_rank,
         overallRank: ranking.overall_rank,
+        domainExpertiseScore: ranking.domain_expertise_score || overallDomainScore,
         strengths,
-        weaknesses
+        weaknesses,
+        metrics: {
+          overallScore: overallDomainScore,
+          consistencyScore,
+          scoreDistribution,
+          categoryCount: categoryScores.length,
+          topCategory: categoryScores[0]?.category || 'None',
+          topCategoryScore: categoryScores[0]?.score || 0,
+          worstCategory: categoryScores[categoryScores.length - 1]?.category || 'None',
+          worstCategoryScore: categoryScores[categoryScores.length - 1]?.score || 0
+        },
+        domainSummary: generateDomainSummary(modelId, overallDomainScore, consistencyScore, strengths, weaknesses, topic)
       };
     }).filter(Boolean); // Remove null entries
     
@@ -828,9 +1111,26 @@ const analyzeDomainExpertise = async (benchmarkResult, rankings) => {
     // Sort by domain expertise rank
     domainInsights.sort((a, b) => a.domainExpertiseRank - b.domainExpertiseRank);
     
+    // Generate overall domain expertise analysis
+    const topPerformer = domainInsights[0];
+    const domainAnalysisSummary = {
+      topic,
+      modelCount: domainInsights.length,
+      topPerformer: topPerformer ? {
+        model_id: topPerformer.model_id,
+        score: topPerformer.domainExpertiseScore,
+        strengths: topPerformer.strengths,
+        topCategory: topPerformer.metrics.topCategory
+      } : null,
+      averageScore: domainInsights.reduce((sum, model) => sum + model.metrics.overallScore, 0) / domainInsights.length,
+      categoryAnalysis: analyzeCategoriesAcrossModels(domainInsights),
+      recommendations: generateDomainRecommendations(domainInsights, topic)
+    };
+    
     return {
       rankings: rankings.sort((a, b) => a.domain_expertise_rank - b.domain_expertise_rank),
-      domainInsights
+      domainInsights,
+      domainAnalysisSummary
     };
   } catch (error) {
     console.error('Error analyzing domain expertise:', error);
@@ -842,6 +1142,31 @@ const analyzeDomainExpertise = async (benchmarkResult, rankings) => {
       domainInsights: []
     };
   }
+};
+
+/**
+ * Helper function to calculate average metrics
+ * @param {Array} rankings - The model rankings
+ * @param {string} metricName - The name of the metric to average
+ * @param {number} maxValue - The maximum value for normalization
+ * @param {boolean} isRank - Whether the metric is a rank (lower is better)
+ * @returns {number} - The average metric value (0-1 scale)
+ */
+const calculateAverageMetric = (rankings, metricName, maxValue, isRank = false) => {
+  // For ranks, lower is better, so we need to invert the calculation
+  if (isRank) {
+    const validRankings = rankings.filter(r => r[metricName] !== undefined && r[metricName] !== null);
+    if (validRankings.length === 0) return 0;
+    
+    // For ranks, we calculate how close to the top rank (1) each model is
+    return validRankings.reduce((sum, r) => sum + (1 - ((r[metricName] - 1) / maxValue)), 0) / validRankings.length;
+  }
+  
+  // For regular metrics (like levels), higher is better
+  const validRankings = rankings.filter(r => r[metricName] !== undefined && r[metricName] !== null);
+  if (validRankings.length === 0) return 0;
+  
+  return validRankings.reduce((sum, r) => sum + (r[metricName] / maxValue), 0) / validRankings.length;
 };
 
 /**
@@ -873,23 +1198,107 @@ const generateSummary = (benchmarkResult, rankings) => {
     // Get best domain expertise model
     const bestDomainExpert = rankingsCopy.sort((a, b) => a.domain_expertise_rank - b.domain_expertise_rank)[0];
     
+    // Get fastest model (lowest latency)
+    const fastestModel = rankingsCopy.sort((a, b) => (a.speed_level || 0) - (b.speed_level || 0)).reverse()[0];
+    
+    // Calculate average scores across all models
+    const avgScores = {
+      overall: rankings.reduce((sum, r) => sum + (r.score || 0), 0) / rankings.length,
+      costEfficiency: calculateAverageMetric(rankings, 'cost_level', 5),
+      domainExpertise: calculateAverageMetric(rankings, 'domain_expertise_rank', rankings.length, true),
+      speed: calculateAverageMetric(rankings, 'speed_level', 5)
+    };
+    
+    // Get detailed model information for top performers
+    const detailedTopModels = topModels.map(model => {
+      // Find test case results for this model
+      const modelResults = benchmarkResult.test_case_results?.filter(tcr => tcr.model_id === model.model_id) || [];
+      
+      // Calculate average scores
+      const avgDomainExpertiseScore = modelResults.reduce((sum, tcr) => sum + (tcr.domain_expertise_score || 0), 0) /
+                                     (modelResults.filter(tcr => tcr.domain_expertise_score !== null && tcr.domain_expertise_score !== undefined).length || 1);
+      
+      const avgAccuracyScore = modelResults.reduce((sum, tcr) => sum + (tcr.accuracy_score || 0), 0) /
+                              (modelResults.filter(tcr => tcr.accuracy_score !== null && tcr.accuracy_score !== undefined).length || 1);
+      
+      const avgLatency = modelResults.reduce((sum, tcr) => sum + (tcr.latency || 0), 0) / (modelResults.length || 1);
+      
+      const totalCost = modelResults.reduce((sum, tcr) => sum + (tcr.cost || 0), 0);
+      
+      // Calculate component scores using the same formula as in generateRankings
+      const latencyScore = Math.max(0, 1 - (avgLatency / 10000));
+      const costScore = Math.max(0, 1 - (totalCost / 0.1));
+      
+      // Calculate weighted components
+      const weightedComponents = {
+        accuracy: avgAccuracyScore * 0.4,
+        domainExpertise: avgDomainExpertiseScore * 0.3,
+        latency: latencyScore * 0.1,
+        cost: costScore * 0.2
+      };
+      
+      return {
+        model_id: model.model_id,
+        rank: model.overall_rank,
+        score: model.score,
+        components: {
+          accuracy: avgAccuracyScore,
+          domainExpertise: avgDomainExpertiseScore,
+          latency: avgLatency,
+          cost: totalCost
+        },
+        weightedComponents,
+        speedLevel: model.speed_level,
+        costLevel: model.cost_level
+      };
+    });
+    
     return {
       topic: benchmarkResult.benchmark_configs?.topic || 'Unknown',
       totalModels: rankings.length,
-      topModels: topModels.map(model => ({
-        model_id: model.model_id,
-        rank: model.overall_rank,
-        score: model.score
-      })),
-      mostCostEffective: {
-        model_id: mostCostEffective.model_id,
-        rank: mostCostEffective.cost_efficiency_rank,
-        score: mostCostEffective.score
+      scoringMethodology: {
+        description: "Models are ranked based on a weighted average of four key metrics",
+        weights: {
+          accuracy: "40% - How well responses match expected outputs",
+          domainExpertise: "30% - Knowledge demonstrated in the specific domain",
+          latency: "10% - Response speed (lower is better)",
+          cost: "20% - Cost efficiency (lower is better)"
+        },
+        formula: "score = (accuracy * 0.4) + (domainExpertise * 0.3) + (latencyScore * 0.1) + (costScore * 0.2)",
+        normalization: {
+          latency: "Converted to 0-1 scale using: max(0, 1 - (avgLatency / 10000))",
+          cost: "Converted to 0-1 scale using: max(0, 1 - (totalCost / 0.1))"
+        }
       },
-      bestDomainExpert: {
-        model_id: bestDomainExpert.model_id,
-        rank: bestDomainExpert.domain_expertise_rank,
-        score: bestDomainExpert.score
+      benchmarkStats: {
+        averageScores: avgScores,
+        modelCount: rankings.length,
+        testCaseCount: benchmarkResult.test_case_results ?
+                      [...new Set(benchmarkResult.test_case_results.map(tcr => tcr.test_case_id))].length : 0
+      },
+      topModels: detailedTopModels,
+      categoryWinners: {
+        overall: {
+          model_id: topModels[0]?.model_id,
+          rank: topModels[0]?.overall_rank,
+          score: topModels[0]?.score
+        },
+        costEfficiency: {
+          model_id: mostCostEffective.model_id,
+          rank: mostCostEffective.cost_efficiency_rank,
+          score: mostCostEffective.score,
+          costLevel: mostCostEffective.cost_level
+        },
+        domainExpertise: {
+          model_id: bestDomainExpert.model_id,
+          rank: bestDomainExpert.domain_expertise_rank,
+          score: bestDomainExpert.score
+        },
+        speed: {
+          model_id: fastestModel.model_id,
+          speedLevel: fastestModel.speed_level,
+          score: fastestModel.score
+        }
       }
     };
   } catch (error) {
