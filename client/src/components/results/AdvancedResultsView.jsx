@@ -36,34 +36,7 @@ const AdvancedResultsView = ({ benchmarkResult, benchmarkConfig }) => {
     loadAnalysis('general');
   }
   
-  // Debug function to check domain expertise data
-  const debugDomainExpertiseData = () => {
-    console.log('Checking domain expertise data propagation:');
-    console.log('Analysis object:', analysis);
-    
-    if (analysis?.rankings) {
-      console.log('Rankings count:', analysis.rankings.length);
-      console.log('First model domain expertise data:', {
-        model_id: analysis.rankings[0]?.model_id,
-        domain_expertise_rank: analysis.rankings[0]?.domain_expertise_rank,
-        domain_expertise_score: analysis.rankings[0]?.domain_expertise_score
-      });
-    }
-    
-    if (analysis?.domainInsights) {
-      console.log('Domain insights count:', analysis.domainInsights.length);
-      console.log('First model domain insights:', analysis.domainInsights[0]);
-    }
-    
-    if (analysis?.summary?.topModels) {
-      console.log('Top models count:', analysis.summary.topModels.length);
-      const firstModel = analysis.summary.topModels[0];
-      console.log('First top model domain expertise:', firstModel?.components?.domainExpertise);
-      console.log('First top model weighted domain expertise:', firstModel?.weightedComponents?.domainExpertise);
-    }
-    
-    return 'Domain expertise data checked - see console';
-  };
+  // No debug functions in production
   
   if (!analysis) {
     return (
@@ -116,7 +89,7 @@ const AdvancedResultsView = ({ benchmarkResult, benchmarkConfig }) => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
             </svg>
           </div>
-          <h2 className="text-xl font-semibold text-dark-600">Advanced Analysis: {benchmarkConfig.advanced_options?.topic || 'Unknown Topic'}</h2>
+          <h2 className="text-xl font-semibold text-dark-600">Advanced Analysis: {benchmarkConfig.topic || 'Unknown Topic'}</h2>
         </div>
         
         <div className="flex space-x-2">
@@ -138,13 +111,7 @@ const AdvancedResultsView = ({ benchmarkResult, benchmarkConfig }) => {
           >
             Domain
           </button>
-          <button
-            className="px-3 py-1 text-sm rounded-md bg-purple-100 text-purple-700 hover:bg-purple-200"
-            onClick={debugDomainExpertiseData}
-            title="Check domain expertise data in console"
-          >
-            Debug Data
-          </button>
+          {/* Debug button removed */}
         </div>
       </div>
       
@@ -176,6 +143,9 @@ const AdvancedResultsView = ({ benchmarkResult, benchmarkConfig }) => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cost</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Speed</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Score</th>
+                    {analysisType === 'domain' && (
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Domain Expertise</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -186,7 +156,16 @@ const AdvancedResultsView = ({ benchmarkResult, benchmarkConfig }) => {
                          analysisType === 'cost' ? model.cost_efficiency_rank : 
                          model.domain_expertise_rank}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-dark-600">{model.model_id}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-dark-600">
+                        <div className="flex flex-col">
+                          <span>{model.model_id}</span>
+                          {model.accuracy_score !== undefined && (
+                            <span className="text-xs text-gray-500 mt-1">
+                              Accuracy: {(model.accuracy_score * 100).toFixed(0)}%
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
                           {Array.from({ length: 5 }).map((_, i) => (
@@ -203,34 +182,72 @@ const AdvancedResultsView = ({ benchmarkResult, benchmarkConfig }) => {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          {Array.from({ length: 5 }).map((_, i) => (
-                            <span 
-                              key={i}
-                              className={`text-sm ${i < model.cost_level ? 'text-green-600' : 'text-gray-300'}`}
-                            >
-                              $
-                            </span>
-                          ))}
+                        <div className="flex flex-col">
+                          <div className="flex items-center">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <span
+                                key={i}
+                                className={`text-sm ${i < model.cost_level ? 'text-green-600' : 'text-gray-300'}`}
+                              >
+                                $
+                              </span>
+                            ))}
+                          </div>
+                          {analysisType === 'cost' && benchmarkResult?.test_case_results && (
+                            <div className="text-xs text-gray-500 mt-1">
+                              Total: ${(benchmarkResult.test_case_results
+                                .filter(tcr => tcr.model_id === model.model_id)
+                                .reduce((sum, tcr) => sum + (tcr.cost || 0), 0)).toFixed(4)}
+                            </div>
+                          )}
+                          <div className="text-xs text-gray-500">
+                            Rank: #{model.cost_efficiency_rank}
+                          </div>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          {Array.from({ length: 5 }).map((_, i) => (
-                            <svg 
-                              key={i}
-                              className={`w-4 h-4 ${i < model.speed_level ? 'text-blue-500' : 'text-gray-300'}`}
-                              fill="currentColor"
-                              viewBox="0 0 20 20"
-                            >
-                              <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
-                            </svg>
-                          ))}
+                        <div className="flex flex-col">
+                          <div className="flex items-center">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <svg
+                                key={i}
+                                className={`w-4 h-4 ${i < model.speed_level ? 'text-blue-500' : 'text-gray-300'}`}
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                              >
+                                <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
+                              </svg>
+                            ))}
+                          </div>
+                          {benchmarkResult?.test_case_results && (
+                            <div className="text-xs text-gray-500 mt-1">
+                              Avg: {Math.round(benchmarkResult.test_case_results
+                                .filter(tcr => tcr.model_id === model.model_id)
+                                .reduce((sum, tcr) => sum + (tcr.latency || 0), 0) /
+                                Math.max(1, benchmarkResult.test_case_results.filter(tcr => tcr.model_id === model.model_id).length))} ms
+                            </div>
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-dark-600 font-semibold">
                         {model.score.toFixed(2)}
                       </td>
+                      {analysisType === 'domain' && (
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex flex-col">
+                            <div className="flex items-center">
+                              <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
+                                <div
+                                  className="bg-purple-600 h-2 rounded-full"
+                                  style={{ width: `${(model.domain_expertise_score || 0) * 100}%` }}
+                                ></div>
+                              </div>
+                              <span className="text-sm">{((model.domain_expertise_score || 0) * 100).toFixed(0)}%</span>
+                            </div>
+                            <span className="text-xs text-gray-500 mt-1">Rank: #{model.domain_expertise_rank}</span>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -245,77 +262,88 @@ const AdvancedResultsView = ({ benchmarkResult, benchmarkConfig }) => {
             {analysisType === 'general' && (
               <div className="space-y-6">
                 <p className="text-gray-700">
-                  The benchmark evaluated {analysis.rankings.length} models on the topic: <span className="font-semibold">{benchmarkConfig.advanced_options?.topic || 'Unknown'}</span>.
+                  The benchmark evaluated {analysis.rankings.length} models on the topic: <span className="font-semibold">{benchmarkConfig.topic || 'Unknown'}</span>.
                 </p>
                 
-                {/* Scoring Methodology Section */}
-                {analysis.summary?.scoringMethodology && (
-                  <div className="bg-white p-4 rounded-lg border border-gray-200 mb-4">
-                    <h4 className="font-medium text-dark-600 mb-3">Scoring Methodology</h4>
-                    <p className="text-sm text-gray-700 mb-3">{analysis.summary.scoringMethodology.description}</p>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
-                      <div>
-                        <h5 className="text-sm font-medium text-gray-600 mb-2">Weight Distribution</h5>
-                        <ul className="space-y-1">
-                          {analysis.summary.scoringMethodology.weights && Object.entries(analysis.summary.scoringMethodology.weights).map(([key, value]) => (
-                            <li key={key} className="text-sm flex items-center">
-                              <div className="w-2 h-2 rounded-full mr-2"
-                                style={{
-                                  backgroundColor:
-                                    key === 'accuracy' ? '#3B82F6' :
-                                    key === 'domainExpertise' ? '#8B5CF6' :
-                                    key === 'latency' ? '#10B981' :
-                                    '#F59E0B'
-                                }}></div>
-                              <span>{value}</span>
-                            </li>
-                          ))}
-                        </ul>
+                {/* Scoring Methodology Section removed */}
+                
+                {/* Benchmark Stats and Winner Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  {/* Benchmark Stats */}
+                  {analysis.summary?.benchmarkStats && (
+                    <div className="bg-white p-4 rounded-lg border border-gray-200">
+                      <h4 className="font-medium text-dark-600 mb-3">Benchmark Statistics</h4>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="text-center p-2 bg-blue-50 rounded-lg">
+                          <p className="text-xs text-gray-500">Models Tested</p>
+                          <p className="text-xl font-bold text-blue-600">{analysis.summary.benchmarkStats.modelCount}</p>
+                        </div>
+                        <div className="text-center p-2 bg-purple-50 rounded-lg">
+                          <p className="text-xs text-gray-500">Test Cases</p>
+                          <p className="text-xl font-bold text-purple-600">{analysis.summary.benchmarkStats.testCaseCount}</p>
+                        </div>
+                        <div className="text-center p-2 bg-green-50 rounded-lg">
+                          <p className="text-xs text-gray-500">Avg. Performance</p>
+                          <p className="text-xl font-bold text-green-600">{(analysis.summary.benchmarkStats.averageScores?.overall * 100).toFixed(0)}%</p>
+                        </div>
+                        <div className="text-center p-2 bg-yellow-50 rounded-lg">
+                          <p className="text-xs text-gray-500">Avg. Cost Level</p>
+                          <p className="text-xl font-bold text-yellow-600">{(analysis.summary.benchmarkStats.averageScores?.costEfficiency * 5).toFixed(1)}/5</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Winner Cards */}
+                  <div className="bg-white p-4 rounded-lg border border-gray-200">
+                    <h4 className="font-medium text-dark-600 mb-3">Category Winners</h4>
+                    <div className="grid grid-cols-1 gap-3">
+                      <div className="flex items-center p-2 bg-indigo-50 rounded-lg">
+                        <div className="p-2 rounded-md bg-indigo-100 mr-2">
+                          <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                          </svg>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-gray-500">Best Overall</p>
+                          <p className="font-semibold">{analysis.summary?.categoryWinners?.overall?.model_id || analysis.rankings[0]?.model_id || 'Unknown'}</p>
+                        </div>
                       </div>
                       
-                      <div>
-                        <h5 className="text-sm font-medium text-gray-600 mb-2">Normalization</h5>
-                        <ul className="space-y-1">
-                          {analysis.summary.scoringMethodology.normalization && Object.entries(analysis.summary.scoringMethodology.normalization).map(([key, value]) => (
-                            <li key={key} className="text-sm">
-                              <span className="font-medium">{key}:</span> {value}
-                            </li>
-                          ))}
-                        </ul>
+                      <div className="flex items-center p-2 bg-green-50 rounded-lg">
+                        <div className="p-2 rounded-md bg-green-100 mr-2">
+                          <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-gray-500">Most Cost-Effective</p>
+                          <p className="font-semibold">
+                            {analysis.summary?.categoryWinners?.costEfficiency?.model_id ||
+                             analysis.rankings.sort((a, b) => a.cost_efficiency_rank - b.cost_efficiency_rank)[0]?.model_id ||
+                             'Unknown'}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                    
-                    <div className="bg-gray-50 p-3 rounded text-sm">
-                      <span className="font-medium">Formula:</span> {analysis.summary.scoringMethodology.formula}
-                    </div>
-                  </div>
-                )}
-                
-                {/* Benchmark Stats */}
-                {analysis.summary?.benchmarkStats && (
-                  <div className="bg-white p-4 rounded-lg border border-gray-200 mb-4">
-                    <h4 className="font-medium text-dark-600 mb-3">Benchmark Statistics</h4>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="text-center p-2 bg-blue-50 rounded-lg">
-                        <p className="text-xs text-gray-500">Models Tested</p>
-                        <p className="text-xl font-bold text-blue-600">{analysis.summary.benchmarkStats.modelCount}</p>
-                      </div>
-                      <div className="text-center p-2 bg-purple-50 rounded-lg">
-                        <p className="text-xs text-gray-500">Test Cases</p>
-                        <p className="text-xl font-bold text-purple-600">{analysis.summary.benchmarkStats.testCaseCount}</p>
-                      </div>
-                      <div className="text-center p-2 bg-green-50 rounded-lg">
-                        <p className="text-xs text-gray-500">Avg. Performance</p>
-                        <p className="text-xl font-bold text-green-600">{(analysis.summary.benchmarkStats.averageScores?.overall * 100).toFixed(0)}%</p>
-                      </div>
-                      <div className="text-center p-2 bg-yellow-50 rounded-lg">
-                        <p className="text-xs text-gray-500">Avg. Cost Level</p>
-                        <p className="text-xl font-bold text-yellow-600">{(analysis.summary.benchmarkStats.averageScores?.costEfficiency * 5).toFixed(1)}/5</p>
+                      
+                      <div className="flex items-center p-2 bg-purple-50 rounded-lg">
+                        <div className="p-2 rounded-md bg-purple-100 mr-2">
+                          <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                          </svg>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-gray-500">Best Domain Expertise</p>
+                          <p className="font-semibold">
+                            {analysis.summary?.categoryWinners?.domainExpertise?.model_id ||
+                             analysis.rankings.sort((a, b) => a.domain_expertise_rank - b.domain_expertise_rank)[0]?.model_id ||
+                             'Unknown'}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </div>
-                )}
+                </div>
                 
                 {/* Top Models with Detailed Scores */}
                 <div className="mb-4">
@@ -344,19 +372,32 @@ const AdvancedResultsView = ({ benchmarkResult, benchmarkConfig }) => {
                             <h5 className="text-sm font-medium text-gray-600 mb-2">Component Scores</h5>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
                               <div className="bg-blue-50 p-2 rounded">
-                                <p className="text-xs text-gray-500">Accuracy</p>
+                                <div className="flex justify-between items-center">
+                                  <p className="text-xs text-gray-500">Accuracy</p>
+                                  <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                                </div>
                                 <p className="font-medium text-blue-700">{(model.components.accuracy * 100).toFixed(1)}%</p>
                               </div>
                               <div className="bg-purple-50 p-2 rounded">
-                                <p className="text-xs text-gray-500">Domain Expertise</p>
+                                <div className="flex justify-between items-center">
+                                  <p className="text-xs text-gray-500">Domain Expertise</p>
+                                  <div className="w-3 h-3 rounded-full bg-purple-500"></div>
+                                </div>
                                 <p className="font-medium text-purple-700">{(model.components.domainExpertise * 100).toFixed(1)}%</p>
+                                {/* Specialized capabilities removed from general tab */}
                               </div>
                               <div className="bg-green-50 p-2 rounded">
-                                <p className="text-xs text-gray-500">Latency</p>
+                                <div className="flex justify-between items-center">
+                                  <p className="text-xs text-gray-500">Speed</p>
+                                  <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                                </div>
                                 <p className="font-medium text-green-700">{model.components.latency.toFixed(0)} ms</p>
                               </div>
                               <div className="bg-yellow-50 p-2 rounded">
-                                <p className="text-xs text-gray-500">Cost</p>
+                                <div className="flex justify-between items-center">
+                                  <p className="text-xs text-gray-500">Cost</p>
+                                  <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                                </div>
                                 <p className="font-medium text-yellow-700">${model.components.cost.toFixed(4)}</p>
                               </div>
                             </div>
@@ -387,83 +428,68 @@ const AdvancedResultsView = ({ benchmarkResult, benchmarkConfig }) => {
                   </div>
                 </div>
                 
-                {/* Category Winners */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="bg-white p-4 rounded-lg border border-gray-200">
-                    <h4 className="font-medium text-dark-600 mb-2">Best Overall Model</h4>
-                    <div className="flex items-center">
-                      <div className="p-2 rounded-md bg-indigo-100 mr-2">
-                        <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-                        </svg>
-                      </div>
-                      <span className="font-semibold">{analysis.summary?.categoryWinners?.overall?.model_id || analysis.rankings[0]?.model_id || 'Unknown'}</span>
-                    </div>
-                    <div className="mt-2 flex items-center">
-                      <div className="flex items-center">
-                        {Array.from({ length: 5 }).map((_, i) => (
-                          <svg
-                            key={i}
-                            className={`w-4 h-4 ${i < Math.round((analysis.summary?.categoryWinners?.overall?.score || analysis.rankings[0]?.score || 0) * 5) ? 'text-yellow-400' : 'text-gray-300'}`}
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
-                          >
-                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                          </svg>
-                        ))}
-                        <span className="ml-2 text-sm text-gray-600">{((analysis.summary?.categoryWinners?.overall?.score || analysis.rankings[0]?.score || 0) * 100).toFixed(0)}%</span>
-                      </div>
-                    </div>
-                  </div>
+                {/* Specialized Capabilities Section */}
+                <div className="grid grid-cols-1 gap-4">
                   
-                  <div className="bg-white p-4 rounded-lg border border-gray-200">
-                    <h4 className="font-medium text-dark-600 mb-2">Most Cost-Effective</h4>
-                    <div className="flex items-center">
-                      <div className="p-2 rounded-md bg-green-100 mr-2">
-                        <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
+                  {/* Specialized Capabilities Section */}
+                  {analysis.domainAnalysisSummary?.specializedCapabilitySummary && (
+                    <div className="bg-white p-4 rounded-lg border border-gray-200">
+                      <h4 className="font-medium text-dark-600 mb-3">Specialized Capabilities</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                        <div className="bg-blue-50 p-3 rounded">
+                          <h5 className="text-sm font-medium text-blue-700 mb-1">Code Generation</h5>
+                          <div className="flex items-center">
+                            <div className="p-2 rounded-md bg-blue-100 mr-2">
+                              <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                              </svg>
+                            </div>
+                            <span className="font-medium text-sm">{analysis.domainAnalysisSummary.specializedCapabilitySummary.bestForCode}</span>
+                          </div>
+                          <p className="text-xs text-blue-600 mt-1">Score: {(analysis.domainAnalysisSummary.specializedCapabilitySummary.avgCodeQuality * 100).toFixed(0)}%</p>
+                        </div>
+                        
+                        <div className="bg-green-50 p-3 rounded">
+                          <h5 className="text-sm font-medium text-green-700 mb-1">Mathematical Tasks</h5>
+                          <div className="flex items-center">
+                            <div className="p-2 rounded-md bg-green-100 mr-2">
+                              <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                              </svg>
+                            </div>
+                            <span className="font-medium text-sm">{analysis.domainAnalysisSummary.specializedCapabilitySummary.bestForMath}</span>
+                          </div>
+                          <p className="text-xs text-green-600 mt-1">Score: {(analysis.domainAnalysisSummary.specializedCapabilitySummary.avgMathAccuracy * 100).toFixed(0)}%</p>
+                        </div>
+                        
+                        <div className="bg-purple-50 p-3 rounded">
+                          <h5 className="text-sm font-medium text-purple-700 mb-1">Creative Writing</h5>
+                          <div className="flex items-center">
+                            <div className="p-2 rounded-md bg-purple-100 mr-2">
+                              <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                            </div>
+                            <span className="font-medium text-sm">{analysis.domainAnalysisSummary.specializedCapabilitySummary.bestForCreative}</span>
+                          </div>
+                          <p className="text-xs text-purple-600 mt-1">Score: {(analysis.domainAnalysisSummary.specializedCapabilitySummary.avgCreativeQuality * 100).toFixed(0)}%</p>
+                        </div>
+                        
+                        <div className="bg-amber-50 p-3 rounded">
+                          <h5 className="text-sm font-medium text-amber-700 mb-1">Analytical Thinking</h5>
+                          <div className="flex items-center">
+                            <div className="p-2 rounded-md bg-amber-100 mr-2">
+                              <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                              </svg>
+                            </div>
+                            <span className="font-medium text-sm">{analysis.domainAnalysisSummary.specializedCapabilitySummary.bestForAnalytical}</span>
+                          </div>
+                          <p className="text-xs text-amber-600 mt-1">Score: {(analysis.domainAnalysisSummary.specializedCapabilitySummary.avgAnalyticalDepth * 100).toFixed(0)}%</p>
+                        </div>
                       </div>
-                      <span className="font-semibold">
-                        {analysis.summary?.categoryWinners?.costEfficiency?.model_id ||
-                         analysis.rankings.sort((a, b) => a.cost_efficiency_rank - b.cost_efficiency_rank)[0]?.model_id ||
-                         'Unknown'}
-                      </span>
                     </div>
-                    <div className="mt-2 flex items-center">
-                      <div className="flex items-center">
-                        {Array.from({ length: 5 }).map((_, i) => (
-                          <span
-                            key={i}
-                            className={`text-sm ${i < (analysis.summary?.categoryWinners?.costEfficiency?.costLevel ||
-                                                      analysis.rankings.sort((a, b) => a.cost_efficiency_rank - b.cost_efficiency_rank)[0]?.cost_level || 0)
-                                                      ? 'text-green-600' : 'text-gray-300'}`}
-                          >
-                            $
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="bg-white p-4 rounded-lg border border-gray-200">
-                    <h4 className="font-medium text-dark-600 mb-2">Best Domain Expertise</h4>
-                    <div className="flex items-center">
-                      <div className="p-2 rounded-md bg-purple-100 mr-2">
-                        <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-                        </svg>
-                      </div>
-                      <span className="font-semibold">
-                        {analysis.summary?.categoryWinners?.domainExpertise?.model_id ||
-                         analysis.rankings.sort((a, b) => a.domain_expertise_rank - b.domain_expertise_rank)[0]?.model_id ||
-                         'Unknown'}
-                      </span>
-                    </div>
-                    <div className="mt-2 text-sm text-gray-600">
-                      Expert in this domain
-                    </div>
-                  </div>
+                  )}
                 </div>
               </div>
             )}
@@ -514,7 +540,7 @@ const AdvancedResultsView = ({ benchmarkResult, benchmarkConfig }) => {
             {analysisType === 'domain' && analysis.domainInsights && (
               <div className="space-y-6">
                 <p className="text-gray-700">
-                  Domain expertise analysis shows how well each model performs in the specific topic area: <span className="font-semibold">{benchmarkConfig.advanced_options?.topic || 'Unknown'}</span>.
+                  Domain expertise analysis shows how well each model performs in the specific topic area: <span className="font-semibold">{benchmarkConfig.topic || 'Unknown'}</span>.
                 </p>
                 
                 {/* Domain Analysis Summary */}
@@ -549,6 +575,35 @@ const AdvancedResultsView = ({ benchmarkResult, benchmarkConfig }) => {
                       </div>
                     </div>
                     
+                    {/* Specialized Capabilities Section */}
+                    {analysis.domainAnalysisSummary.specializedCapabilitySummary && (
+                      <div className="mb-4 bg-gray-50 p-3 rounded-lg">
+                        <h5 className="text-sm font-medium text-gray-600 mb-2">Specialized Capabilities</h5>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div>
+                            <p className="text-xs font-medium text-gray-500">Best for Code Generation</p>
+                            <p className="text-sm text-gray-700 font-medium">{analysis.domainAnalysisSummary.specializedCapabilitySummary.bestForCode}</p>
+                            <p className="text-xs text-gray-500">Avg. Score: {(analysis.domainAnalysisSummary.specializedCapabilitySummary.avgCodeQuality * 100).toFixed(0)}%</p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-medium text-gray-500">Best for Mathematical Tasks</p>
+                            <p className="text-sm text-gray-700 font-medium">{analysis.domainAnalysisSummary.specializedCapabilitySummary.bestForMath}</p>
+                            <p className="text-xs text-gray-500">Avg. Score: {(analysis.domainAnalysisSummary.specializedCapabilitySummary.avgMathAccuracy * 100).toFixed(0)}%</p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-medium text-gray-500">Best for Creative Writing</p>
+                            <p className="text-sm text-gray-700 font-medium">{analysis.domainAnalysisSummary.specializedCapabilitySummary.bestForCreative}</p>
+                            <p className="text-xs text-gray-500">Avg. Score: {(analysis.domainAnalysisSummary.specializedCapabilitySummary.avgCreativeQuality * 100).toFixed(0)}%</p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-medium text-gray-500">Best for Analytical Thinking</p>
+                            <p className="text-sm text-gray-700 font-medium">{analysis.domainAnalysisSummary.specializedCapabilitySummary.bestForAnalytical}</p>
+                            <p className="text-xs text-gray-500">Avg. Score: {(analysis.domainAnalysisSummary.specializedCapabilitySummary.avgAnalyticalDepth * 100).toFixed(0)}%</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
                     {/* Recommendations */}
                     {analysis.domainAnalysisSummary.recommendations && (
                       <div className="mb-4">
@@ -564,129 +619,126 @@ const AdvancedResultsView = ({ benchmarkResult, benchmarkConfig }) => {
                       </div>
                     )}
                     
-                    {/* Category Analysis */}
-                    {analysis.domainAnalysisSummary.categoryAnalysis && (
-                      <div>
-                        <h5 className="text-sm font-medium text-gray-600 mb-2">Category Analysis</h5>
-                        <div className="overflow-x-auto">
-                          <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
-                              <tr>
-                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avg. Score</th>
-                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Best Model</th>
-                              </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
-                              {analysis.domainAnalysisSummary.categoryAnalysis.map((cat, index) => (
-                                <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                                  <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-700">{cat.category}</td>
-                                  <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-700">{(cat.averageScore * 100).toFixed(0)}%</td>
-                                  <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-700">{cat.bestModel}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    )}
+                    {/* Category Analysis removed */}
                   </div>
                 )}
                 
                 {/* Individual Model Analysis */}
                 <h4 className="font-medium text-dark-600 mb-3">Model-by-Model Analysis</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4">
                   {analysis.domainInsights.map((model) => (
                     <div key={model.model_id} className="bg-white p-4 rounded-lg border border-gray-200">
-                      <div className="flex justify-between items-center mb-3">
-                        <h4 className="font-medium text-dark-600">{model.model_id}</h4>
-                        <span className="text-sm bg-purple-100 text-purple-800 px-2 py-1 rounded-full">
-                          Rank: #{model.domainExpertiseRank} | Score: {(model.domainExpertiseScore * 100).toFixed(0)}%
-                        </span>
+                      {/* Compact Model Card Header */}
+                      <div className="flex justify-between items-center mb-2">
+                        <div className="flex items-center">
+                          <span className="font-medium text-dark-600 mr-2">{model.model_id}</span>
+                          <span className="text-xs bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded">
+                            #{model.domainExpertiseRank}
+                          </span>
+                        </div>
+                        <span className="text-sm font-medium text-purple-700">{(model.domainExpertiseScore * 100).toFixed(0)}%</span>
                       </div>
                       
-                      {/* Domain Summary */}
-                      {model.domainSummary && (
-                        <div className="bg-gray-50 p-3 rounded mb-3 text-sm text-gray-700">
-                          {model.domainSummary}
-                        </div>
-                      )}
+                      {/* Compact Metrics Row */}
+                      <div className="flex space-x-2 mb-2 text-xs">
+                        <span className="bg-blue-50 px-1.5 py-0.5 rounded">Consistency: {(model.metrics?.consistencyScore * 100).toFixed(0)}%</span>
+                        <span className="bg-purple-50 px-1.5 py-0.5 rounded">Domain Score: {(model.domainExpertiseScore * 100).toFixed(0)}%</span>
+                      </div>
                       
-                      {/* Metrics */}
-                      {model.metrics && (
-                        <div className="grid grid-cols-2 gap-2 mb-3">
-                          <div className="bg-blue-50 p-2 rounded">
-                            <p className="text-xs text-gray-500">Consistency</p>
-                            <p className="font-medium text-blue-700">{(model.metrics.consistencyScore * 100).toFixed(0)}%</p>
-                          </div>
-                          <div className="bg-green-50 p-2 rounded">
-                            <p className="text-xs text-gray-500">Categories</p>
-                            <p className="font-medium text-green-700">{model.metrics.categoryCount}</p>
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* Score Distribution */}
+                      {/* Score Distribution (more compact) */}
                       {model.metrics?.scoreDistribution && (
-                        <div className="mb-3">
-                          <h5 className="text-xs font-medium text-gray-500 mb-1">Score Distribution</h5>
-                          <div className="flex h-4 rounded-full overflow-hidden">
+                        <div className="mb-2">
+                          <div className="flex h-2 rounded-full overflow-hidden">
                             <div className="bg-green-500 h-full" style={{ width: `${model.metrics.scoreDistribution.excellent * 100 / Object.values(model.metrics.scoreDistribution).reduce((a, b) => a + b, 0)}%` }}></div>
                             <div className="bg-blue-500 h-full" style={{ width: `${model.metrics.scoreDistribution.good * 100 / Object.values(model.metrics.scoreDistribution).reduce((a, b) => a + b, 0)}%` }}></div>
                             <div className="bg-yellow-500 h-full" style={{ width: `${model.metrics.scoreDistribution.average * 100 / Object.values(model.metrics.scoreDistribution).reduce((a, b) => a + b, 0)}%` }}></div>
                             <div className="bg-orange-500 h-full" style={{ width: `${model.metrics.scoreDistribution.poor * 100 / Object.values(model.metrics.scoreDistribution).reduce((a, b) => a + b, 0)}%` }}></div>
                             <div className="bg-red-500 h-full" style={{ width: `${model.metrics.scoreDistribution.veryPoor * 100 / Object.values(model.metrics.scoreDistribution).reduce((a, b) => a + b, 0)}%` }}></div>
                           </div>
-                          <div className="flex justify-between text-xs text-gray-500 mt-1">
-                            <span>Very Poor</span>
-                            <span>Excellent</span>
-                          </div>
                         </div>
                       )}
                       
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <h5 className="text-sm font-medium text-gray-500 mb-2">Strengths</h5>
-                          <div className="space-y-2">
-                            {model.strengths.map((strength, index) => (
-                              <div key={index} className="flex items-center">
-                                <div className="w-24 bg-gray-200 rounded-full h-2.5 mr-2">
-                                  <div
-                                    className="bg-green-600 h-2.5 rounded-full"
-                                    style={{ width: `${strength.score * 100}%` }}
-                                  ></div>
-                                </div>
-                                <span className="text-sm text-gray-600">{strength.category}</span>
-                              </div>
-                            ))}
-                          </div>
+                      {/* Domain Summary (more compact) */}
+                      {model.domainSummary && (
+                        <div className="bg-gray-50 p-2 rounded mb-2 text-xs text-gray-700 line-clamp-2">
+                          {model.domainSummary}
                         </div>
-                        
-                        <div>
-                          <h5 className="text-sm font-medium text-gray-500 mb-2">Weaknesses</h5>
-                          <div className="space-y-2">
-                            {model.weaknesses.map((weakness, index) => (
-                              <div key={index} className="flex items-center">
-                                <div className="w-24 bg-gray-200 rounded-full h-2.5 mr-2">
-                                  <div
-                                    className="bg-red-600 h-2.5 rounded-full"
-                                    style={{ width: `${weakness.score * 100}%` }}
-                                  ></div>
-                                </div>
-                                <span className="text-sm text-gray-600">{weakness.category}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
+                      )}
                       
-                      {/* Sample Responses */}
-                      {model.strengths.length > 0 && model.strengths[0].sampleResponses && (
-                        <div className="mt-3">
-                          <h5 className="text-sm font-medium text-gray-500 mb-2">Sample Response</h5>
-                          <div className="bg-gray-50 p-2 rounded text-xs text-gray-700">
-                            <p className="font-medium">{model.strengths[0].sampleResponses[0]?.prompt}</p>
-                            <p className="mt-1">{model.strengths[0].sampleResponses[0]?.output}</p>
+                      {/* Strengths and Weaknesses section removed */}
+                      
+                      {/* Enhanced Specialized Capabilities */}
+                      {model.specializedCapabilities && (
+                        <div className="mb-2">
+                          <h5 className="text-xs font-medium text-gray-500 mb-1">Specialized Capabilities</h5>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="flex items-center bg-blue-50 rounded px-2 py-1">
+                              <div className="mr-2">
+                                <svg className="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                                </svg>
+                              </div>
+                              <div className="flex-grow">
+                                <div className="flex justify-between">
+                                  <span className="text-xs text-blue-700">Code</span>
+                                  <span className="text-xs font-medium text-blue-700">{(model.specializedCapabilities.codeQuality * 100).toFixed(0)}%</span>
+                                </div>
+                                <div className="w-full bg-blue-200 rounded-full h-1 mt-1">
+                                  <div className="bg-blue-600 h-1 rounded-full" style={{ width: `${model.specializedCapabilities.codeQuality * 100}%` }}></div>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-center bg-green-50 rounded px-2 py-1">
+                              <div className="mr-2">
+                                <svg className="w-3 h-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                </svg>
+                              </div>
+                              <div className="flex-grow">
+                                <div className="flex justify-between">
+                                  <span className="text-xs text-green-700">Math</span>
+                                  <span className="text-xs font-medium text-green-700">{(model.specializedCapabilities.mathematicalAccuracy * 100).toFixed(0)}%</span>
+                                </div>
+                                <div className="w-full bg-green-200 rounded-full h-1 mt-1">
+                                  <div className="bg-green-600 h-1 rounded-full" style={{ width: `${model.specializedCapabilities.mathematicalAccuracy * 100}%` }}></div>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-center bg-purple-50 rounded px-2 py-1">
+                              <div className="mr-2">
+                                <svg className="w-3 h-3 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                              </div>
+                              <div className="flex-grow">
+                                <div className="flex justify-between">
+                                  <span className="text-xs text-purple-700">Creative</span>
+                                  <span className="text-xs font-medium text-purple-700">{(model.specializedCapabilities.creativeQuality * 100).toFixed(0)}%</span>
+                                </div>
+                                <div className="w-full bg-purple-200 rounded-full h-1 mt-1">
+                                  <div className="bg-purple-600 h-1 rounded-full" style={{ width: `${model.specializedCapabilities.creativeQuality * 100}%` }}></div>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-center bg-amber-50 rounded px-2 py-1">
+                              <div className="mr-2">
+                                <svg className="w-3 h-3 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                                </svg>
+                              </div>
+                              <div className="flex-grow">
+                                <div className="flex justify-between">
+                                  <span className="text-xs text-amber-700">Analytical</span>
+                                  <span className="text-xs font-medium text-amber-700">{(model.specializedCapabilities.analyticalDepth * 100).toFixed(0)}%</span>
+                                </div>
+                                <div className="w-full bg-amber-200 rounded-full h-1 mt-1">
+                                  <div className="bg-amber-600 h-1 rounded-full" style={{ width: `${model.specializedCapabilities.analyticalDepth * 100}%` }}></div>
+                                </div>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       )}

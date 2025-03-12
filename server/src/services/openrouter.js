@@ -357,11 +357,136 @@ export const getOpenRouterModels = async (apiKey = process.env.OPENROUTER_API_KE
   return getAvailableModels(apiKey);
 };
 
+/**
+ * Check token capacity for a specific model
+ * @param {string} modelId - The model ID to check
+ * @param {string} apiKey - OpenRouter API key
+ * @returns {Promise<Object>} - Token capacity information
+ */
+export const checkModelTokenCapacity = async (modelId, apiKey = process.env.OPENROUTER_API_KEY) => {
+  try {
+    console.log(`Checking token capacity for model ${modelId}`);
+    
+    if (!apiKey) {
+      console.error('No API key provided for token capacity check');
+      return {
+        success: false,
+        error: 'API key is required'
+      };
+    }
+    
+    // Create headers for the request
+    const headers = {
+      'Content-Type': 'application/json',
+      'HTTP-Referer': process.env.CLIENT_URL || 'http://localhost:5173',
+      'X-Title': 'LLM Benchmark',
+      'Authorization': `Bearer ${apiKey}`
+    };
+    
+    console.log('Headers for token capacity check:', Object.keys(headers));
+    
+    // First, validate the API key to get general credit information
+    console.log('Validating API key before token capacity check');
+    const keyValidation = await validateApiKey(apiKey);
+    console.log('API key validation result:', {
+      valid: keyValidation.valid,
+      credits: keyValidation.credits,
+      error: keyValidation.error || 'None'
+    });
+    
+    if (!keyValidation.valid) {
+      return {
+        success: false,
+        error: keyValidation.error || 'Invalid API key'
+      };
+    }
+    
+    // Make a test request to the model to check token capacity
+    // We'll use a more realistic prompt that matches the actual benchmark usage
+    const testPrompt = "Generate 3 test cases for a benchmark on the topic of artificial intelligence. Each test case should include a prompt, expected output, and category.";
+    
+    try {
+      console.log(`Making test request to model ${modelId}`);
+      
+      // Make a request to the chat completions endpoint
+      const response = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
+        model: modelId,
+        messages: [{ role: 'user', content: testPrompt }],
+        temperature: 0.7,
+        max_tokens: 2048 // Match the token limit used in the benchmark
+      }, {
+        headers
+      });
+      
+      console.log('Test request successful:', {
+        status: response.status,
+        usage: response.data.usage
+      });
+      
+      // If we get here, the request was successful
+      return {
+        success: true,
+        modelId,
+        availableTokenCapacity: true,
+        credits: keyValidation.credits,
+        usage: response.data.usage
+      };
+    } catch (modelError) {
+      console.error('Error in test request:', modelError.message);
+      console.error('Error response:', modelError.response?.data);
+      
+      // Check if this is a token capacity error
+      if (modelError.response?.data?.error?.message?.includes('token capacity required')) {
+        // Extract the required and available token capacity from the error message
+        const errorMsg = modelError.response.data.error.message;
+        console.log('Token capacity error message:', errorMsg);
+        
+        const requiredMatch = errorMsg.match(/(\d+) token capacity required/);
+        const availableMatch = errorMsg.match(/(\d+) available/);
+        
+        const requiredCapacity = requiredMatch ? parseInt(requiredMatch[1]) : null;
+        const availableCapacity = availableMatch ? parseInt(availableMatch[1]) : null;
+        
+        console.log('Extracted capacity information:', {
+          requiredCapacity,
+          availableCapacity
+        });
+        
+        return {
+          success: false,
+          modelId,
+          availableTokenCapacity: false,
+          requiredCapacity,
+          availableCapacity,
+          credits: keyValidation.credits,
+          error: errorMsg
+        };
+      }
+      
+      // For other errors, return the error message
+      return {
+        success: false,
+        modelId,
+        error: modelError.response?.data?.error?.message || modelError.message
+      };
+    }
+  } catch (error) {
+    console.error(`Error checking token capacity for model ${modelId}:`, error.message);
+    console.error('Stack trace:', error.stack);
+    return {
+      success: false,
+      modelId,
+      error: error.message
+    };
+  }
+};
+
 export default {
   getAvailableModels,
   getOpenRouterModels,
   generateCompletion,
   generateChatCompletion,
   runModelTest,
-  validateApiKey
+  validateApiKey,
+  checkModelTokenCapacity
 };

@@ -259,6 +259,8 @@ const Settings = () => {
     }
   };
 
+  // Function to check token capacity removed
+
   const handleClearApiKey = () => {
     // Show confirmation modal
     showModal({

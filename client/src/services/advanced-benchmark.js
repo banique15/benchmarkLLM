@@ -381,10 +381,60 @@ export const deleteAdvancedBenchmark = async (id) => {
 };
 
 /**
- * Get model rankings for a benchmark result
- * @param {string} resultId - The benchmark result ID
- * @returns {Promise<Array>} - The model rankings
+ * Check token capacity for a specific model
+ * @param {string} modelId - The model ID to check
+ * @param {string} apiKey - OpenRouter API key
+ * @returns {Promise<Object>} - Token capacity information
  */
+export const checkModelTokenCapacity = async (modelId, apiKey) => {
+  try {
+    // Validate inputs
+    if (!modelId) {
+      throw new Error('Model ID is required');
+    }
+    
+    if (!apiKey) {
+      throw new Error('API key is required');
+    }
+    
+    console.log(`Checking token capacity for model: ${modelId}`);
+    
+    const response = await fetch(`${API_URL}/api/openrouter/model/${encodeURIComponent(modelId)}/token-capacity`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': apiKey
+      }
+    });
+
+    console.log('Token capacity check response status:', response.status);
+    
+    const responseData = await response.json();
+    console.log('Token capacity check response data:', responseData);
+
+    if (!response.ok) {
+      let errorMessage = 'Failed to check token capacity';
+      if (responseData && responseData.message) {
+        errorMessage = responseData.message;
+      } else {
+        errorMessage = `${errorMessage}: ${response.statusText}`;
+      }
+      throw new Error(errorMessage);
+    }
+
+    return responseData;
+  } catch (error) {
+    console.error('Error checking model token capacity:', error);
+    // Return a structured error object instead of throwing
+    return {
+      success: false,
+      error: true,
+      message: error.message || 'An unexpected error occurred',
+      details: error.toString()
+    };
+  }
+};
+
 export const getModelRankings = async (resultId) => {
   try {
     // Validate input

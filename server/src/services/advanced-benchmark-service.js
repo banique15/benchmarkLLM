@@ -2,6 +2,41 @@ import supabase from '../supabase.js';
 import { getOpenRouterModels } from './openrouter.js';
 import { generateWithLangchain } from './langchain-service.js';
 import { v4 as uuidv4 } from 'uuid';
+import * as specializedCapabilityService from './specialized-capability-service.js';
+
+/**
+ * Helper function to extract JSON array from LLM response
+ * @param {string} response - The raw response from the LLM
+ * @returns {Array} - The extracted JSON array
+ */
+const extractJsonArrayFromResponse = (response) => {
+  // First try to parse the entire response as JSON
+  try {
+    const parsed = JSON.parse(response);
+    return parsed;
+  } catch (directParseError) {
+    // If that fails, try to extract a JSON array from the response
+    const jsonMatch = response.match(/\[\s*\{.*\}\s*\]/s);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
+    } else {
+      // If no JSON array is found, look for any JSON object
+      const objectMatch = response.match(/\{\s*".*"\s*:.*\}/s);
+      if (objectMatch) {
+        const parsedObject = JSON.parse(objectMatch[0]);
+        // Check if the object has a property that contains an array
+        const arrayProperty = Object.values(parsedObject).find(value => Array.isArray(value));
+        if (arrayProperty) {
+          return arrayProperty;
+        } else {
+          throw new Error('No valid JSON array found in response object');
+        }
+      } else {
+        throw new Error('No valid JSON found in response');
+      }
+    }
+  }
+};
 
 /**
  * Generate test cases based on a topic
@@ -54,41 +89,17 @@ export const generateTestCases = async (topic, count = 20) => {
       Return only the JSON array with no additional text.
     `;
 
-    // Try using a model with fewer token capacity restrictions
+    // Use Gemini Flash 2.0 with a lower max_tokens setting to avoid token capacity issues
     const response = await generateWithLangchain(prompt, {
-      model: "anthropic/claude-3-haiku",  // Using Claude 3 Haiku which may have different token capacity restrictions
+      model: "google/gemini-2.0-flash-001",  // Using Gemini 2.0 Flash with the correct model ID
       temperature: 0.7,
-      max_tokens: 2048  // Set a reasonable limit to avoid exceeding available credits
+      max_tokens: 1500  // Reduced to stay within available token capacity
     });
 
     // Parse the response as JSON
     let testCases;
     try {
-      // First try to parse the entire response as JSON
-      try {
-        testCases = JSON.parse(response);
-      } catch (directParseError) {
-        // If that fails, try to extract a JSON array from the response
-        const jsonMatch = response.match(/\[\s*\{.*\}\s*\]/s);
-        if (jsonMatch) {
-          testCases = JSON.parse(jsonMatch[0]);
-        } else {
-          // If no JSON array is found, look for any JSON object
-          const objectMatch = response.match(/\{\s*".*"\s*:.*\}/s);
-          if (objectMatch) {
-            const parsedObject = JSON.parse(objectMatch[0]);
-            // Check if the object has a property that contains an array
-            const arrayProperty = Object.values(parsedObject).find(value => Array.isArray(value));
-            if (arrayProperty) {
-              testCases = arrayProperty;
-            } else {
-              throw new Error('No valid JSON array found in response object');
-            }
-          } else {
-            throw new Error('No valid JSON found in response');
-          }
-        }
-      }
+      testCases = extractJsonArrayFromResponse(response);
       
       // Validate that testCases is an array
       if (!Array.isArray(testCases)) {
@@ -172,13 +183,39 @@ export const generateTestCases = async (topic, count = 20) => {
 };
 
 /**
- * Select appropriate models based on the topic and options
- * @param {string} topic - The topic or domain for the benchmark
- * @param {number} maxModels - Maximum number of models to select
- * @param {boolean} prioritizeCost - Whether to prioritize cost-effective models
+ * Helper function to get filtered fallback models
  * @param {Array} selectedProviders - Array of provider IDs to filter models by
- * @returns {Promise<Array>} - Array of selected model configurations
+ * @returns {Array} - Filtered fallback models
  */
+const getFilteredFallbackModels = (selectedProviders = []) => {
+  const fallbackModels = [
+    { id: 'openai/gpt-3.5-turbo', description: 'GPT-3.5 Turbo' },
+    { id: 'anthropic/claude-3-haiku', description: 'Claude 3 Haiku' },
+    { id: 'google/gemini-pro', description: 'Gemini Pro' },
+    { id: 'meta-llama/llama-3-8b-instruct', description: 'Llama 3 8B' },
+    { id: 'mistralai/mistral-7b-instruct', description: 'Mistral 7B' }
+  ];
+  
+  // If no providers specified, return all fallback models
+  if (!selectedProviders || selectedProviders.length === 0) {
+    return fallbackModels;
+  }
+  
+  // Filter models by provider
+  const filteredModels = fallbackModels.filter(model => {
+    const provider = model.id.split('/')[0];
+    return selectedProviders.includes(provider);
+  });
+  
+  // If no models match the selected providers, use all fallback models
+  if (filteredModels.length === 0) {
+    console.warn('No fallback models match selected providers, using all fallback models');
+    return fallbackModels;
+  }
+  
+  return filteredModels;
+};
+
 export const selectModels = async (topic, maxModels = 50, prioritizeCost = false, selectedProviders = []) => {
   try {
     // Get available models from OpenRouter
@@ -191,11 +228,18 @@ export const selectModels = async (topic, maxModels = 50, prioritizeCost = false
     // Filter models by provider if selectedProviders is not empty
     if (selectedProviders && selectedProviders.length > 0) {
       console.log(`Filtering models by providers: ${selectedProviders.join(', ')}`);
-      availableModels = availableModels.filter(model => {
+      const filteredModels = availableModels.filter(model => {
         const provider = model.id.split('/')[0]; // Extract provider from id (e.g., "openai" from "openai/gpt-4")
         return selectedProviders.includes(provider);
       });
-      console.log(`After filtering, ${availableModels.length} models remain`);
+      
+      // If filtering results in no models, keep the original list
+      if (filteredModels.length === 0) {
+        console.log('No models match the selected providers, keeping all available models');
+      } else {
+        availableModels = filteredModels;
+        console.log(`After filtering, ${availableModels.length} models remain`);
+      }
     }
     
     if (!Array.isArray(availableModels)) {
@@ -208,57 +252,13 @@ export const selectModels = async (topic, maxModels = 50, prioritizeCost = false
       } else {
         // If still not an array, create a fallback array with some common models
         console.warn('Creating fallback models array');
-        const fallbackModels = [
-          { id: 'openai/gpt-3.5-turbo', description: 'GPT-3.5 Turbo' },
-          { id: 'anthropic/claude-3-haiku', description: 'Claude 3 Haiku' },
-          { id: 'google/gemini-pro', description: 'Gemini Pro' },
-          { id: 'meta-llama/llama-3-8b-instruct', description: 'Llama 3 8B' },
-          { id: 'mistralai/mistral-7b-instruct', description: 'Mistral 7B' }
-        ];
-        
-        // Filter fallback models by provider if selectedProviders is not empty
-        if (selectedProviders && selectedProviders.length > 0) {
-          availableModels = fallbackModels.filter(model => {
-            const provider = model.id.split('/')[0];
-            return selectedProviders.includes(provider);
-          });
-          
-          // If no models match the selected providers, use all fallback models
-          if (availableModels.length === 0) {
-            console.warn('No fallback models match selected providers, using all fallback models');
-            availableModels = fallbackModels;
-          }
-        } else {
-          availableModels = fallbackModels;
-        }
+        availableModels = getFilteredFallbackModels(selectedProviders);
       }
     }
     
     if (availableModels.length === 0) {
       console.warn('No models found, using fallback models');
-      const fallbackModels = [
-        { id: 'openai/gpt-3.5-turbo', description: 'GPT-3.5 Turbo' },
-        { id: 'anthropic/claude-3-haiku', description: 'Claude 3 Haiku' },
-        { id: 'google/gemini-pro', description: 'Gemini Pro' },
-        { id: 'meta-llama/llama-3-8b-instruct', description: 'Llama 3 8B' },
-        { id: 'mistralai/mistral-7b-instruct', description: 'Mistral 7B' }
-      ];
-      
-      // Filter fallback models by provider if selectedProviders is not empty
-      if (selectedProviders && selectedProviders.length > 0) {
-        availableModels = fallbackModels.filter(model => {
-          const provider = model.id.split('/')[0];
-          return selectedProviders.includes(provider);
-        });
-        
-        // If no models match the selected providers, use all fallback models
-        if (availableModels.length === 0) {
-          console.warn('No fallback models match selected providers, using all fallback models');
-          availableModels = fallbackModels;
-        }
-      } else {
-        availableModels = fallbackModels;
-      }
+      availableModels = getFilteredFallbackModels(selectedProviders);
     }
     
     console.log(`Retrieved ${availableModels.length} available models`);
@@ -363,41 +363,17 @@ export const selectModels = async (topic, maxModels = 50, prioritizeCost = false
       Return only the JSON array with no additional text.
     `;
 
-    // Try using a model with fewer token capacity restrictions
+    // Use Gemini Flash 2.0 with a lower max_tokens setting to avoid token capacity issues
     const response = await generateWithLangchain(prompt, {
-      model: "anthropic/claude-3-haiku",  // Using Claude 3 Haiku which may have different token capacity restrictions
+      model: "google/gemini-2.0-flash-001",  // Using Gemini 2.0 Flash with the correct model ID
       temperature: 0.7,
-      max_tokens: 1536  // Set a reasonable limit to avoid exceeding available credits
+      max_tokens: 1500  // Reduced to stay within available token capacity
     });
 
     // Parse the response as JSON
     let selectedModels;
     try {
-      // First try to parse the entire response as JSON
-      try {
-        selectedModels = JSON.parse(response);
-      } catch (directParseError) {
-        // If that fails, try to extract a JSON array from the response
-        const jsonMatch = response.match(/\[\s*\{.*\}\s*\]/s);
-        if (jsonMatch) {
-          selectedModels = JSON.parse(jsonMatch[0]);
-        } else {
-          // If no JSON array is found, look for any JSON object
-          const objectMatch = response.match(/\{\s*".*"\s*:.*\}/s);
-          if (objectMatch) {
-            const parsedObject = JSON.parse(objectMatch[0]);
-            // Check if the object has a property that contains an array
-            const arrayProperty = Object.values(parsedObject).find(value => Array.isArray(value));
-            if (arrayProperty) {
-              selectedModels = arrayProperty;
-            } else {
-              throw new Error('No valid JSON array found in response object');
-            }
-          } else {
-            throw new Error('No valid JSON found in response');
-          }
-        }
-      }
+      selectedModels = extractJsonArrayFromResponse(response);
       
       // Validate that selectedModels is an array
       if (!Array.isArray(selectedModels)) {
@@ -656,9 +632,30 @@ export const analyzeResults = async (benchmarkResult, rankings, analysisType = '
         return await analyzeDomainExpertise(benchmarkResult, rankings);
       case 'general':
       default:
+        // Get domain analysis to include specialized capabilities in general analysis
+        const domainAnalysis = await analyzeDomainExpertise(benchmarkResult, rankings);
+        
+        // Generate summary with specialized capabilities
+        const summary = generateSummary(benchmarkResult, rankings);
+        
+        // Add domain analysis summary to general analysis
+        summary.domainAnalysisSummary = domainAnalysis.domainAnalysisSummary;
+        
+        // Add specialized capabilities to top models
+        if (summary.topModels && domainAnalysis.domainInsights) {
+          summary.topModels.forEach(model => {
+            const domainInsight = domainAnalysis.domainInsights.find(
+              insight => insight.model_id === model.model_id
+            );
+            if (domainInsight) {
+              model.specializedCapabilities = domainInsight.specializedCapabilities;
+            }
+          });
+        }
+        
         return {
           rankings,
-          summary: generateSummary(benchmarkResult, rankings)
+          summary
         };
     }
   } catch (error) {
@@ -911,10 +908,10 @@ const analyzeCostEfficiency = async (benchmarkResult, rankings) => {
 };
 
 /**
- * Analyze domain expertise of models
+ * Analyze specialized capabilities of models
  * @param {Object} benchmarkResult - The benchmark result object
  * @param {Array} rankings - The model rankings
- * @returns {Promise<Object>} - The domain expertise analysis
+ * @returns {Promise<Object>} - The specialized capability analysis
  */
 const analyzeDomainExpertise = async (benchmarkResult, rankings) => {
   try {
@@ -1016,40 +1013,82 @@ const analyzeDomainExpertise = async (benchmarkResult, rankings) => {
     // Get topic information
     const topic = benchmarkResult.benchmark_configs?.topic || 'Unknown';
     
-    // Generate domain insights for each model
-    const domainInsights = modelIds.map(modelId => {
+    // Generate specialized capability insights for each model
+    const domainInsights = [];
+    
+    for (const modelId of modelIds) {
       const modelResults = benchmarkResult.test_case_results.filter(tcr => tcr.model_id === modelId);
       
       if (modelResults.length === 0) {
         console.warn(`No test case results found for model ${modelId}`);
-        return null;
+        continue;
       }
       
       const ranking = rankings.find(r => r.model_id === modelId);
       
       if (!ranking) {
         console.warn(`No ranking found for model ${modelId}`);
-        return null;
+        continue;
       }
+      
+      // Evaluate specialized capabilities for each test case
+      const capabilityResults = [];
+      
+      for (const result of modelResults) {
+        const category = testCaseCategories[result.test_case_id] || 'unknown';
+        
+        // Skip test cases without necessary data
+        if (!result.output || !result.prompt) continue;
+        
+        // Evaluate specialized capabilities
+        const capabilities = await specializedCapabilityService.evaluateSpecializedCapabilities(
+          result.output,
+          result.prompt,
+          category
+        );
+        
+        capabilityResults.push({
+          testCaseId: result.test_case_id,
+          category,
+          capabilities
+        });
+      }
+      
+      // Calculate average scores for each capability
+      const avgCodeQuality = capabilityResults.reduce((sum, r) => sum + r.capabilities.codeQuality, 0) / capabilityResults.length;
+      const avgMathAccuracy = capabilityResults.reduce((sum, r) => sum + r.capabilities.mathematicalAccuracy, 0) / capabilityResults.length;
+      const avgCreativeQuality = capabilityResults.reduce((sum, r) => sum + r.capabilities.creativeQuality, 0) / capabilityResults.length;
+      const avgAnalyticalDepth = capabilityResults.reduce((sum, r) => sum + r.capabilities.analyticalDepth, 0) / capabilityResults.length;
+      
+      // Calculate overall score
+      const overallScore = (avgCodeQuality + avgMathAccuracy + avgCreativeQuality + avgAnalyticalDepth) / 4;
       
       // Group results by category
       const resultsByCategory = {};
-      modelResults.forEach(tcr => {
-        const category = testCaseCategories[tcr.test_case_id] || 'unknown';
-        if (!resultsByCategory[category]) {
-          resultsByCategory[category] = [];
+      capabilityResults.forEach(result => {
+        if (!resultsByCategory[result.category]) {
+          resultsByCategory[result.category] = [];
         }
-        resultsByCategory[category].push(tcr);
+        resultsByCategory[result.category].push(result);
       });
       
       // Calculate average score by category
       const categoryScores = Object.entries(resultsByCategory).map(([category, results]) => {
-        const avgScore = results.reduce((sum, tcr) => sum + (tcr.domain_expertise_score || 0), 0) / results.length;
-        const sampleResponses = results.slice(0, 2).map(tcr => ({
-          prompt: tcr.prompt,
-          output: tcr.output.substring(0, 150) + (tcr.output.length > 150 ? '...' : ''),
-          score: tcr.domain_expertise_score || 0
-        }));
+        // Calculate average overall score for this category
+        const categoryOverallScores = results.map(r =>
+          specializedCapabilityService.calculateOverallCapabilityScore(r.capabilities)
+        );
+        const avgScore = categoryOverallScores.reduce((sum, score) => sum + score, 0) / categoryOverallScores.length;
+        
+        // Get sample responses
+        const sampleResponses = modelResults
+          .filter(tcr => testCaseCategories[tcr.test_case_id] === category)
+          .slice(0, 2)
+          .map(tcr => ({
+            prompt: tcr.prompt,
+            output: tcr.output.substring(0, 150) + (tcr.output.length > 150 ? '...' : ''),
+            score: avgScore
+          }));
         
         return {
           category,
@@ -1066,32 +1105,44 @@ const analyzeDomainExpertise = async (benchmarkResult, rankings) => {
       const strengths = categoryScores.slice(0, Math.min(3, categoryScores.length));
       const weaknesses = [...categoryScores].sort((a, b) => a.score - b.score).slice(0, Math.min(3, categoryScores.length));
       
-      // Calculate overall domain expertise metrics
-      const overallDomainScore = modelResults.reduce((sum, tcr) => sum + (tcr.domain_expertise_score || 0), 0) / modelResults.length;
+      // Calculate score distribution
+      const allScores = capabilityResults.map(r =>
+        specializedCapabilityService.calculateOverallCapabilityScore(r.capabilities)
+      );
+      
       const scoreDistribution = {
-        excellent: modelResults.filter(tcr => (tcr.domain_expertise_score || 0) >= 0.8).length,
-        good: modelResults.filter(tcr => (tcr.domain_expertise_score || 0) >= 0.6 && (tcr.domain_expertise_score || 0) < 0.8).length,
-        average: modelResults.filter(tcr => (tcr.domain_expertise_score || 0) >= 0.4 && (tcr.domain_expertise_score || 0) < 0.6).length,
-        poor: modelResults.filter(tcr => (tcr.domain_expertise_score || 0) >= 0.2 && (tcr.domain_expertise_score || 0) < 0.4).length,
-        veryPoor: modelResults.filter(tcr => (tcr.domain_expertise_score || 0) < 0.2).length
+        excellent: allScores.filter(score => score >= 0.8).length,
+        good: allScores.filter(score => score >= 0.6 && score < 0.8).length,
+        average: allScores.filter(score => score >= 0.4 && score < 0.6).length,
+        poor: allScores.filter(score => score >= 0.2 && score < 0.4).length,
+        veryPoor: allScores.filter(score => score < 0.2).length
       };
       
       // Calculate consistency score (lower standard deviation = more consistent)
-      const scores = modelResults.map(tcr => tcr.domain_expertise_score || 0);
-      const mean = scores.reduce((sum, score) => sum + score, 0) / scores.length;
-      const variance = scores.reduce((sum, score) => sum + Math.pow(score - mean, 2), 0) / scores.length;
+      const mean = allScores.reduce((sum, score) => sum + score, 0) / allScores.length;
+      const variance = allScores.reduce((sum, score) => sum + Math.pow(score - mean, 2), 0) / allScores.length;
       const stdDev = Math.sqrt(variance);
       const consistencyScore = Math.max(0, 1 - stdDev);
       
-      return {
+      // Create specialized capability metrics
+      const specializedCapabilities = {
+        codeQuality: avgCodeQuality,
+        mathematicalAccuracy: avgMathAccuracy,
+        creativeQuality: avgCreativeQuality,
+        analyticalDepth: avgAnalyticalDepth
+      };
+      
+      // Add to domain insights
+      domainInsights.push({
         model_id: modelId,
         domainExpertiseRank: ranking.domain_expertise_rank,
         overallRank: ranking.overall_rank,
-        domainExpertiseScore: ranking.domain_expertise_score || overallDomainScore,
+        domainExpertiseScore: overallScore, // Use specialized capability score as domain expertise score
+        specializedCapabilities,
         strengths,
         weaknesses,
         metrics: {
-          overallScore: overallDomainScore,
+          overallScore,
           consistencyScore,
           scoreDistribution,
           categoryCount: categoryScores.length,
@@ -1100,18 +1151,18 @@ const analyzeDomainExpertise = async (benchmarkResult, rankings) => {
           worstCategory: categoryScores[categoryScores.length - 1]?.category || 'None',
           worstCategoryScore: categoryScores[categoryScores.length - 1]?.score || 0
         },
-        domainSummary: generateDomainSummary(modelId, overallDomainScore, consistencyScore, strengths, weaknesses, topic)
-      };
-    }).filter(Boolean); // Remove null entries
+        domainSummary: specializedCapabilityService.generateCapabilitySummary(modelId, specializedCapabilities)
+      });
+    }
     
     if (domainInsights.length === 0) {
-      throw new Error('No valid domain insights could be generated');
+      throw new Error('No valid specialized capability insights could be generated');
     }
     
     // Sort by domain expertise rank
     domainInsights.sort((a, b) => a.domainExpertiseRank - b.domainExpertiseRank);
     
-    // Generate overall domain expertise analysis
+    // Generate overall specialized capability analysis
     const topPerformer = domainInsights[0];
     const domainAnalysisSummary = {
       topic,
@@ -1120,20 +1171,49 @@ const analyzeDomainExpertise = async (benchmarkResult, rankings) => {
         model_id: topPerformer.model_id,
         score: topPerformer.domainExpertiseScore,
         strengths: topPerformer.strengths,
-        topCategory: topPerformer.metrics.topCategory
+        topCategory: topPerformer.metrics.topCategory,
+        specializedCapabilities: topPerformer.specializedCapabilities
       } : null,
       averageScore: domainInsights.reduce((sum, model) => sum + model.metrics.overallScore, 0) / domainInsights.length,
       categoryAnalysis: analyzeCategoriesAcrossModels(domainInsights),
-      recommendations: generateDomainRecommendations(domainInsights, topic)
+      recommendations: generateDomainRecommendations(domainInsights, topic),
+      // Add specialized capability summary
+      specializedCapabilitySummary: {
+        avgCodeQuality: domainInsights.reduce((sum, model) => sum + model.specializedCapabilities.codeQuality, 0) / domainInsights.length,
+        avgMathAccuracy: domainInsights.reduce((sum, model) => sum + model.specializedCapabilities.mathematicalAccuracy, 0) / domainInsights.length,
+        avgCreativeQuality: domainInsights.reduce((sum, model) => sum + model.specializedCapabilities.creativeQuality, 0) / domainInsights.length,
+        avgAnalyticalDepth: domainInsights.reduce((sum, model) => sum + model.specializedCapabilities.analyticalDepth, 0) / domainInsights.length,
+        bestForCode: domainInsights.sort((a, b) => b.specializedCapabilities.codeQuality - a.specializedCapabilities.codeQuality)[0].model_id,
+        bestForMath: domainInsights.sort((a, b) => b.specializedCapabilities.mathematicalAccuracy - a.specializedCapabilities.mathematicalAccuracy)[0].model_id,
+        bestForCreative: domainInsights.sort((a, b) => b.specializedCapabilities.creativeQuality - a.specializedCapabilities.creativeQuality)[0].model_id,
+        bestForAnalytical: domainInsights.sort((a, b) => b.specializedCapabilities.analyticalDepth - a.specializedCapabilities.analyticalDepth)[0].model_id
+      }
     };
     
+    // Update rankings with new specialized capability scores
+    const updatedRankings = [...rankings];
+    for (const insight of domainInsights) {
+      const rankingIndex = updatedRankings.findIndex(r => r.model_id === insight.model_id);
+      if (rankingIndex >= 0) {
+        updatedRankings[rankingIndex].domain_expertise_score = insight.domainExpertiseScore;
+      }
+    }
+    
+    // Re-sort rankings by specialized capability score
+    updatedRankings.sort((a, b) => b.domain_expertise_score - a.domain_expertise_score);
+    
+    // Reassign domain expertise ranks
+    updatedRankings.forEach((ranking, index) => {
+      ranking.domain_expertise_rank = index + 1;
+    });
+    
     return {
-      rankings: rankings.sort((a, b) => a.domain_expertise_rank - b.domain_expertise_rank),
+      rankings: updatedRankings.sort((a, b) => a.domain_expertise_rank - b.domain_expertise_rank),
       domainInsights,
       domainAnalysisSummary
     };
   } catch (error) {
-    console.error('Error analyzing domain expertise:', error);
+    console.error('Error analyzing specialized capabilities:', error);
     
     // Return a basic response with error information
     return {
@@ -1215,8 +1295,22 @@ const generateSummary = (benchmarkResult, rankings) => {
       const modelResults = benchmarkResult.test_case_results?.filter(tcr => tcr.model_id === model.model_id) || [];
       
       // Calculate average scores
-      const avgDomainExpertiseScore = modelResults.reduce((sum, tcr) => sum + (tcr.domain_expertise_score || 0), 0) /
-                                     (modelResults.filter(tcr => tcr.domain_expertise_score !== null && tcr.domain_expertise_score !== undefined).length || 1);
+      let avgDomainExpertiseScore;
+      
+      // If the model has specialized capabilities, use them to calculate domain expertise score
+      if (model.specializedCapabilities) {
+        // Calculate domain expertise as the average of specialized capabilities
+        avgDomainExpertiseScore = (
+          model.specializedCapabilities.codeQuality +
+          model.specializedCapabilities.mathematicalAccuracy +
+          model.specializedCapabilities.creativeQuality +
+          model.specializedCapabilities.analyticalDepth
+        ) / 4;
+      } else {
+        // Fall back to the original calculation if specialized capabilities aren't available
+        avgDomainExpertiseScore = modelResults.reduce((sum, tcr) => sum + (tcr.domain_expertise_score || 0), 0) /
+                                 (modelResults.filter(tcr => tcr.domain_expertise_score !== null && tcr.domain_expertise_score !== undefined).length || 1);
+      }
       
       const avgAccuracyScore = modelResults.reduce((sum, tcr) => sum + (tcr.accuracy_score || 0), 0) /
                               (modelResults.filter(tcr => tcr.accuracy_score !== null && tcr.accuracy_score !== undefined).length || 1);
@@ -1257,10 +1351,10 @@ const generateSummary = (benchmarkResult, rankings) => {
       topic: benchmarkResult.benchmark_configs?.topic || 'Unknown',
       totalModels: rankings.length,
       scoringMethodology: {
-        description: "Models are ranked based on a weighted average of four key metrics",
+        description: "Models are ranked based on a weighted average of key metrics including specialized capabilities",
         weights: {
           accuracy: "40% - How well responses match expected outputs",
-          domainExpertise: "30% - Knowledge demonstrated in the specific domain",
+          domainExpertise: "30% - Specialized capabilities in the specific domain",
           latency: "10% - Response speed (lower is better)",
           cost: "20% - Cost efficiency (lower is better)"
         },
@@ -1268,6 +1362,16 @@ const generateSummary = (benchmarkResult, rankings) => {
         normalization: {
           latency: "Converted to 0-1 scale using: max(0, 1 - (avgLatency / 10000))",
           cost: "Converted to 0-1 scale using: max(0, 1 - (totalCost / 0.1))"
+        },
+        specializedCapabilities: {
+          description: "Domain expertise is now calculated based on four specialized capabilities",
+          capabilities: {
+            codeQuality: "Evaluates syntax correctness, structure, and functionality of code",
+            mathematicalAccuracy: "Measures precision in calculations and mathematical reasoning",
+            creativeQuality: "Assesses creativity, narrative structure, and stylistic elements",
+            analyticalDepth: "Evaluates depth of analysis, reasoning, and critical thinking"
+          },
+          calculation: "domainExpertise = (codeQuality + mathematicalAccuracy + creativeQuality + analyticalDepth) / 4"
         }
       },
       benchmarkStats: {

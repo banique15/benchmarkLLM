@@ -203,8 +203,6 @@ const AdvancedBenchmark = () => {
       {/* Model Selection Preview */}
       {generatedConfig && (
         <div>
-          {/* Add debug info to help diagnose issues */}
-          {console.log('Generated config:', generatedConfig)}
           {generatedConfig.model_configs ? (
             <ModelSelectionPreview models={generatedConfig.model_configs} />
           ) : (

@@ -249,6 +249,80 @@ router.get('/benchmark/:id/status', extractApiKey, async (req, res, next) => {
   }
 });
 
-// This function has been replaced by the benchmark service
+// Check token capacity for a specific model
+router.get('/model/:modelId/token-capacity', extractApiKey, async (req, res, next) => {
+  try {
+    const { modelId } = req.params;
+    
+    if (!modelId) {
+      return res.status(400).json({ error: 'Model ID is required' });
+    }
+    
+    console.log(`Checking token capacity for model ${modelId}`);
+    console.log('API Key received:', req.apiKey ? `${req.apiKey.substring(0, 4)}...${req.apiKey.substring(req.apiKey.length - 4)}` : 'No API key');
+    
+    if (!req.apiKey) {
+      return res.status(401).json({
+        success: false,
+        error: 'API key is required',
+        message: 'API key is required for token capacity check'
+      });
+    }
+    
+    try {
+      // Use the checkModelTokenCapacity function from openRouterService
+      const capacityResult = await openRouterService.checkModelTokenCapacity(modelId, req.apiKey);
+      
+      // Log the result for debugging
+      console.log('Token capacity check result:', {
+        success: capacityResult.success,
+        modelId: capacityResult.modelId,
+        availableTokenCapacity: capacityResult.availableTokenCapacity,
+        requiredCapacity: capacityResult.requiredCapacity,
+        availableCapacity: capacityResult.availableCapacity,
+        credits: capacityResult.credits,
+        error: capacityResult.error || 'None'
+      });
+      
+      if (!capacityResult.success) {
+        return res.status(200).json({
+          success: false,
+          modelId,
+          availableTokenCapacity: capacityResult.availableTokenCapacity,
+          requiredCapacity: capacityResult.requiredCapacity,
+          availableCapacity: capacityResult.availableCapacity,
+          credits: capacityResult.credits,
+          message: capacityResult.error || 'Failed to check token capacity',
+          error: capacityResult.error
+        });
+      }
+      
+      res.json({
+        success: true,
+        modelId,
+        availableTokenCapacity: true,
+        credits: capacityResult.credits,
+        usage: capacityResult.usage,
+        message: `Token capacity check successful for model ${modelId}. You have sufficient token capacity.`
+      });
+    } catch (serviceError) {
+      console.error('Service error checking token capacity:', serviceError);
+      return res.status(500).json({
+        success: false,
+        modelId,
+        message: `Error checking token capacity: ${serviceError.message}`,
+        error: serviceError.message
+      });
+    }
+  } catch (error) {
+    console.error(`Error checking token capacity for model ${req.params.modelId}:`, error);
+    res.status(500).json({
+      success: false,
+      modelId: req.params.modelId,
+      message: `Server error checking token capacity: ${error.message}`,
+      error: error.message
+    });
+  }
+});
 
 export default router;
