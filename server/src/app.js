@@ -47,7 +47,7 @@ const corsOptions = {
     }
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Credit-Limit'],
   credentials: true // Allow cookies if needed
 };
 

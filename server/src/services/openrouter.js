@@ -252,7 +252,7 @@ export const runModelTest = async (model, prompt, options = {}, apiKey) => {
 };
 
 // Validate API key and check credits
-export const validateApiKey = async (apiKey) => {
+export const validateApiKey = async (apiKey, req = null) => {
   try {
     console.log('Validating API key:', apiKey ? `${apiKey.substring(0, 4)}...${apiKey.substring(apiKey.length - 4)}` : 'No API key provided');
     
@@ -284,34 +284,95 @@ export const validateApiKey = async (apiKey) => {
     // Log the full response for debugging
     console.log('API key validation response data:', JSON.stringify(response.data, null, 2));
     
-    // Extract credit information from the response
-    // OpenRouter API returns data in different formats depending on the endpoint
+    // Extract credit information from the response using a more robust approach
     let credits = null;
     let limit = null;
+    let defaultCreditLimit = 1000; // Default credit limit if not provided by API
+    
+    // Enhanced logging for response structure analysis
+    console.log('Response structure check:', {
+      hasCreditsField: response.data.credits !== undefined,
+      hasDataField: response.data.data !== undefined,
+      hasUsageField: response.data.data?.usage !== undefined,
+      hasLimitField: response.data.limit !== undefined || response.data.data?.limit !== undefined,
+      responseKeys: Object.keys(response.data),
+      dataKeys: response.data.data ? Object.keys(response.data.data) : 'No data field'
+    });
     
     // Try to extract credit information from different possible formats
+    // First priority: direct credits field
     if (response.data.credits !== undefined) {
+      console.log('Using direct credits field:', response.data.credits);
       credits = response.data.credits;
-    } else if (response.data.data?.usage !== undefined) {
-      // The /auth/key endpoint returns usage instead of credits
-      credits = 1000 - (response.data.data.usage * 1000); // Convert usage to available credits
+    }
+    // Second priority: extract from usage with dynamic limit
+    else if (response.data.data?.usage !== undefined) {
+      // Check if there's a manually set credit limit in the request
+      const manualCreditLimit = req?.creditLimit;
+      
+      // Always prioritize the manual credit limit if provided
+      // Only fall back to API response or default if not provided
+      const creditLimit = manualCreditLimit ?
+                         parseInt(manualCreditLimit, 10) :
+                         response.data.data?.limit ||
+                         response.data.limit ||
+                         defaultCreditLimit;
+                         
+      console.log('Using credit limit:', manualCreditLimit ?
+                 `${manualCreditLimit} (manually set)` :
+                 `${creditLimit} (from API or default)`);
+      
+      // Calculate available credits based on usage value and limit
+      const usageValue = response.data.data.usage;
+      
+      // The correct calculation is simply: creditLimit - usageValue
+      // This treats usage as an absolute value, not a percentage
+      credits = creditLimit - usageValue;
+      
+      console.log('Calculated credits from usage:', {
+        usageValue,
+        creditLimit,
+        calculatedCredits: credits,
+        calculation: `${creditLimit} - ${usageValue} = ${credits}`
+      });
+    }
+    // Third priority: try to find credits in nested objects
+    else if (response.data.data) {
+      // Look for any field that might contain credit information
+      const possibleCreditFields = ['credits', 'credit', 'balance', 'available'];
+      for (const field of possibleCreditFields) {
+        if (response.data.data[field] !== undefined) {
+          console.log(`Found credits in data.${field}:`, response.data.data[field]);
+          credits = response.data.data[field];
+          break;
+        }
+      }
     }
     
+    // Extract limit information
     if (response.data.limit !== undefined) {
       limit = response.data.limit;
     } else if (response.data.data?.limit !== undefined) {
       limit = response.data.data.limit;
+    } else {
+      // If no limit is provided, use the default
+      limit = defaultCreditLimit;
+      console.log(`No limit found in response, using default: ${defaultCreditLimit}`);
     }
+    
+    // Minimum recommended credits for benchmarks
+    const minimumRecommendedCredits = 500;
     
     // Check if we have enough credits for a typical request
     // If we can't determine credits, we need to make a test call to check
-    const hasCredits = credits === null ? true : credits >= 500;
+    const hasCredits = credits === null ? true : credits >= minimumRecommendedCredits;
     
     console.log('Credit check results:', {
       credits,
       limit,
       hasCredits,
       creditInfoProvided: credits !== null,
+      minimumRecommendedCredits,
       usage: response.data.data?.usage
     });
     
@@ -320,6 +381,7 @@ export const validateApiKey = async (apiKey) => {
       credits,
       limit,
       hasCredits,
+      minimumRecommendedCredits,
       data: response.data
     };
   } catch (error) {
@@ -361,9 +423,10 @@ export const getOpenRouterModels = async (apiKey = process.env.OPENROUTER_API_KE
  * Check token capacity for a specific model
  * @param {string} modelId - The model ID to check
  * @param {string} apiKey - OpenRouter API key
+ * @param {Object} req - Request object containing creditLimit
  * @returns {Promise<Object>} - Token capacity information
  */
-export const checkModelTokenCapacity = async (modelId, apiKey = process.env.OPENROUTER_API_KEY) => {
+export const checkModelTokenCapacity = async (modelId, apiKey = process.env.OPENROUTER_API_KEY, req = null) => {
   try {
     console.log(`Checking token capacity for model ${modelId}`);
     
@@ -387,7 +450,12 @@ export const checkModelTokenCapacity = async (modelId, apiKey = process.env.OPEN
     
     // First, validate the API key to get general credit information
     console.log('Validating API key before token capacity check');
-    const keyValidation = await validateApiKey(apiKey);
+    // Create a mock request object with the apiKey
+    const mockReq = {
+      apiKey: apiKey,
+      creditLimit: null // We don't have access to the request headers here
+    };
+    const keyValidation = await validateApiKey(apiKey, mockReq);
     console.log('API key validation result:', {
       valid: keyValidation.valid,
       credits: keyValidation.credits,

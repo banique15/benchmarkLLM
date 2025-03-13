@@ -11,20 +11,28 @@ const openRouterClient = axios.create({
   },
 });
 
-// Add API key to requests
+// Add API key and credit limit to requests
 const getApiKey = () => {
   const apiKey = localStorage.getItem('openrouter_api_key');
   console.log('API key from localStorage:', apiKey ? `${apiKey.substring(0, 4)}...${apiKey.substring(apiKey.length - 4)}` : 'No API key');
   return apiKey;
 };
 
+const getCreditLimit = () => {
+  const creditLimit = localStorage.getItem('openrouter_credit_limit');
+  console.log('Credit limit from localStorage:', creditLimit || '1000 (default)');
+  return creditLimit || '1000'; // Default to 1000 if not set
+};
+
 // Models
 export const getAvailableModels = async () => {
   try {
     const apiKey = getApiKey();
+    const creditLimit = getCreditLimit();
     const response = await openRouterClient.get('/models', {
       headers: {
         'X-API-Key': apiKey,
+        'X-Credit-Limit': creditLimit,
       },
     });
     return response.data;
@@ -38,6 +46,7 @@ export const getAvailableModels = async () => {
 export const generateCompletion = async (model, prompt, options = {}) => {
   try {
     const apiKey = getApiKey();
+    const creditLimit = getCreditLimit();
     const response = await openRouterClient.post('/completions', {
       model,
       prompt,
@@ -45,6 +54,7 @@ export const generateCompletion = async (model, prompt, options = {}) => {
     }, {
       headers: {
         'X-API-Key': apiKey,
+        'X-Credit-Limit': creditLimit,
       },
     });
     return response.data;
@@ -58,6 +68,7 @@ export const generateCompletion = async (model, prompt, options = {}) => {
 export const generateChatCompletion = async (model, messages, options = {}) => {
   try {
     const apiKey = getApiKey();
+    const creditLimit = getCreditLimit();
     const response = await openRouterClient.post('/chat/completions', {
       model,
       messages,
@@ -65,6 +76,7 @@ export const generateChatCompletion = async (model, messages, options = {}) => {
     }, {
       headers: {
         'X-API-Key': apiKey,
+        'X-Credit-Limit': creditLimit,
       },
     });
     return response.data;
@@ -78,11 +90,14 @@ export const generateChatCompletion = async (model, messages, options = {}) => {
 export const runBenchmark = async (benchmarkConfig) => {
   try {
     const apiKey = getApiKey();
+    const creditLimit = getCreditLimit();
     console.log('Running benchmark with API key:', apiKey ? `${apiKey.substring(0, 4)}...${apiKey.substring(apiKey.length - 4)}` : 'No API key');
+    console.log('Using credit limit:', creditLimit);
     
     // Log the request headers
     const headers = {
       'X-API-Key': apiKey,
+      'X-Credit-Limit': creditLimit,
       'Content-Type': 'application/json',
     };
     console.log('Request headers:', Object.keys(headers));
@@ -113,11 +128,14 @@ export const runBenchmark = async (benchmarkConfig) => {
 export const getBenchmarkStatus = async (benchmarkId) => {
   try {
     const apiKey = getApiKey();
+    const creditLimit = getCreditLimit();
     console.log('Getting benchmark status with API key:', apiKey ? `${apiKey.substring(0, 4)}...${apiKey.substring(apiKey.length - 4)}` : 'No API key');
+    console.log('Using credit limit:', creditLimit);
     
     // Log the request headers
     const headers = {
       'X-API-Key': apiKey,
+      'X-Credit-Limit': creditLimit,
       'Content-Type': 'application/json',
     };
     console.log('Request headers:', Object.keys(headers));

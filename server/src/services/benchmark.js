@@ -49,7 +49,12 @@ export const runBenchmark = async (benchmarkConfig, apiKey) => {
   try {
     // Validate the API key and check credits
     console.log('Validating API key before running benchmark');
-    const keyValidation = await openRouterService.validateApiKey(apiKey);
+    // Create a mock request object with the apiKey and creditLimit
+    const mockReq = {
+      apiKey: apiKey,
+      creditLimit: null // We don't have access to the request headers here, so we'll use null
+    };
+    const keyValidation = await openRouterService.validateApiKey(apiKey, mockReq);
     console.log('API key validation result:', {
       valid: keyValidation.valid,
       hasCredits: keyValidation.hasCredits,
@@ -251,7 +256,11 @@ const processBenchmark = async (benchmarkConfig, resultId, apiKey, apiKeyStatus 
               } else {
                 console.log('API key related error detected, re-validating key');
                 // Re-validate the API key to check if credits have been depleted
-                const updatedKeyStatus = await openRouterService.validateApiKey(apiKey);
+                const mockReq = {
+                  apiKey: apiKey,
+                  creditLimit: null // We don't have access to the request headers here
+                };
+                const updatedKeyStatus = await openRouterService.validateApiKey(apiKey, mockReq);
                 
                 console.log('Re-validation result:', {
                   valid: updatedKeyStatus.valid,
