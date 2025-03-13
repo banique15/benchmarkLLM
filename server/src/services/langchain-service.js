@@ -409,10 +409,6 @@ export const generateChatCompletion = async (model, messages, options = {}, apiK
 
 // Import the validateApiKey and checkModelTokenCapacity functions from openrouter.js
 import { validateApiKey, checkModelTokenCapacity } from './openrouter.js';
-import dotenv from 'dotenv';
-
-// Load environment variables
-dotenv.config();
 
 // Get the credit limit from environment variable or use a reasonable default
 const DEFAULT_CREDIT_LIMIT = process.env.OPENROUTER_CREDIT_LIMIT || '1000';

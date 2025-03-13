@@ -1,8 +1,134 @@
 import supabase from '../supabase.js';
 import { getOpenRouterModels } from './openrouter.js';
-import { generateWithLangchain } from './langchain-service.js';
+import { generateWithLangchain, checkTokenCapacity } from './langchain-service.js';
 import { v4 as uuidv4 } from 'uuid';
+import dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
 // Removed specialized capability service import
+
+/**
+ * Select the best model for test case generation optimizing for value
+ * @param {string} topic - The benchmark topic
+ * @param {number} availableCapacity - Available token capacity
+ * @returns {Object} - Selected model and parameters
+ */
+const selectModelForTestCases = (topic, availableCapacity) => {
+  // Convert topic to lowercase for easier matching
+  const topicLower = topic.toLowerCase();
+  
+  // Define domain categories
+  const domains = {
+    technical: ['programming', 'code', 'algorithm', 'engineering', 'technical', 'math', 'science', 'physics'],
+    creative: ['creative', 'writing', 'story', 'narrative', 'fiction', 'art', 'design'],
+    business: ['business', 'finance', 'marketing', 'management', 'strategy', 'economics'],
+    medical: ['medical', 'health', 'biology', 'medicine', 'clinical', 'disease'],
+    general: ['general', 'knowledge', 'information', 'facts', 'history', 'geography']
+  };
+  
+  // Determine domain category
+  let topicDomain = 'general';
+  for (const [domain, keywords] of Object.entries(domains)) {
+    if (keywords.some(keyword => topicLower.includes(keyword))) {
+      topicDomain = domain;
+      break;
+    }
+  }
+  
+  // Define model capabilities and efficiency ratings (quality-to-cost ratio)
+  // Higher values indicate better value (quality per token)
+  const modelRatings = {
+    "anthropic/claude-3-opus": {
+      technical: 9.5, creative: 9.0, business: 9.5, medical: 9.5, general: 9.0,
+      tokenEfficiency: 0.7, // Quality per token (lower efficiency due to higher cost)
+      minTokens: 1500
+    },
+    "anthropic/claude-3-sonnet": {
+      technical: 9.0, creative: 9.2, business: 9.0, medical: 9.0, general: 9.0,
+      tokenEfficiency: 0.85, // Better efficiency than Opus
+      minTokens: 1200
+    },
+    "anthropic/claude-3-haiku": {
+      technical: 8.5, creative: 8.7, business: 8.5, medical: 8.0, general: 8.5,
+      tokenEfficiency: 1.0, // Great efficiency
+      minTokens: 800
+    },
+    "openai/gpt-4o": {
+      technical: 9.7, creative: 9.0, business: 9.2, medical: 9.3, general: 9.5,
+      tokenEfficiency: 0.75, // High quality but higher cost
+      minTokens: 1500
+    },
+    "openai/gpt-4-turbo": {
+      technical: 9.5, creative: 8.8, business: 9.0, medical: 9.0, general: 9.2,
+      tokenEfficiency: 0.8,
+      minTokens: 1200
+    },
+    "openai/gpt-3.5-turbo": {
+      technical: 7.5, creative: 7.0, business: 7.0, medical: 6.5, general: 7.5,
+      tokenEfficiency: 1.2, // Very efficient (good quality for the cost)
+      minTokens: 600
+    },
+    "meta-llama/llama-3-70b-instruct": {
+      technical: 8.0, creative: 7.5, business: 7.5, medical: 7.0, general: 8.0,
+      tokenEfficiency: 1.1,
+      minTokens: 800
+    },
+    "meta-llama/llama-3-8b-instruct": {
+      technical: 7.0, creative: 6.5, business: 6.5, medical: 6.0, general: 7.0,
+      tokenEfficiency: 1.3, // Extremely efficient
+      minTokens: 500
+    }
+  };
+  
+  // Calculate value scores (domain-specific quality × token efficiency)
+  const modelValueScores = {};
+  for (const [model, ratings] of Object.entries(modelRatings)) {
+    modelValueScores[model] = ratings[topicDomain] * ratings.tokenEfficiency;
+  }
+  
+  // Sort models by value score (descending)
+  const sortedModels = Object.entries(modelValueScores)
+    .sort(([, scoreA], [, scoreB]) => scoreB - scoreA)
+    .map(([model]) => model);
+  
+  // Find the highest value model that fits within available capacity
+  let selectedModel = null;
+  let maxTokens = 0;
+  
+  for (const model of sortedModels) {
+    const minRequiredTokens = modelRatings[model].minTokens;
+    
+    // Check if we have enough capacity for this model
+    if (minRequiredTokens <= availableCapacity - 100) { // Leave 100 tokens buffer
+      selectedModel = model;
+      // Set max_tokens to a value that works well for this model but stays within capacity
+      maxTokens = Math.min(
+        minRequiredTokens + 200, // Preferred token count for this model
+        availableCapacity - 100  // Stay within available capacity with buffer
+      );
+      break;
+    }
+  }
+  
+  // If no model fits, fall back to the most efficient model with reduced tokens
+  if (!selectedModel) {
+    // Find the model with highest token efficiency
+    const mostEfficientModel = Object.entries(modelRatings)
+      .sort(([, ratingsA], [, ratingsB]) => ratingsB.tokenEfficiency - ratingsA.tokenEfficiency)[0][0];
+    
+    selectedModel = mostEfficientModel;
+    maxTokens = Math.max(300, availableCapacity - 100); // Minimum 300 tokens, with buffer
+  }
+  
+  console.log(`Selected ${selectedModel} for ${topicDomain} topic with value score: ${modelValueScores[selectedModel]}`);
+  
+  return {
+    model: selectedModel,
+    temperature: 0.7,
+    max_tokens: maxTokens
+  };
+};
 
 /**
  * Helper function to extract JSON array from LLM response
@@ -90,12 +216,19 @@ export const generateTestCases = async (topic, count = 10) => {
       Return only the JSON array with no additional text.
     `;
 
-    // Use Claude 3 Haiku with optimized token settings for cost-efficiency
-    const response = await generateWithLangchain(prompt, {
-      model: "anthropic/claude-3-haiku",  // Using Claude 3 Haiku for better test case generation
-      temperature: 0.7,
-      max_tokens: 1000  // Reduced to optimize for cost while maintaining quality
-    });
+    // Get the API key from environment
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    
+    // Check available token capacity
+    const availableCapacity = await checkTokenCapacity(apiKey);
+    
+    // Select the best model based on topic and available capacity
+    const modelConfig = selectModelForTestCases(topic, availableCapacity);
+    
+    console.log(`Selected model ${modelConfig.model} with max_tokens ${modelConfig.max_tokens} for topic: "${topic}"`);
+    
+    // Use the selected model to generate test cases
+    const response = await generateWithLangchain(prompt, modelConfig, apiKey);
 
     // Parse the response as JSON
     let testCases;
@@ -364,12 +497,19 @@ export const selectModels = async (topic, maxModels = 50, prioritizeCost = false
       Return only the JSON array with no additional text.
     `;
 
-    // Use Claude 3 Haiku with optimized token settings for cost-efficiency
-    const response = await generateWithLangchain(prompt, {
-      model: "anthropic/claude-3-haiku",  // Using Claude 3 Haiku for model selection
-      temperature: 0.7,
-      max_tokens: 1000  // Reduced to optimize for cost while maintaining quality
-    });
+    // Get the API key from environment
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    
+    // Check available token capacity
+    const availableCapacity = await checkTokenCapacity(apiKey);
+    
+    // Select the best model based on topic and available capacity
+    const modelConfig = selectModelForTestCases(topic, availableCapacity);
+    
+    console.log(`Selected model ${modelConfig.model} with max_tokens ${modelConfig.max_tokens} for topic: "${topic}"`);
+    
+    // Use the selected model to generate test cases
+    const response = await generateWithLangchain(prompt, modelConfig, apiKey);
 
     // Parse the response as JSON
     let selectedModels;
