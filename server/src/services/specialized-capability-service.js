@@ -276,73 +276,122 @@ export const evaluateAnalyticalDepth = async (response, prompt) => {
  * @returns {Promise<Object>} - Specialized capability scores
  */
 export const evaluateSpecializedCapabilities = async (response, prompt, category) => {
+  console.log(`Evaluating specialized capabilities for category: ${category}`);
+  console.log(`Response length: ${response?.length || 0}, Prompt length: ${prompt?.length || 0}`);
+  
+  // Safety check for null/undefined inputs
+  if (!response || !prompt) {
+    console.warn('Missing response or prompt in specialized capability evaluation');
+    return {
+      codeQuality: 0.5,
+      mathematicalAccuracy: 0.5,
+      creativeQuality: 0.5,
+      analyticalDepth: 0.5,
+      primaryCapability: 'analyticalDepth'
+    };
+  }
+  
+  // Normalize category to prevent null/undefined issues
+  const normalizedCategory = (category || '').toLowerCase();
+  console.log(`Normalized category: ${normalizedCategory}`);
+  
   // Determine which capabilities to evaluate based on the category
   let codeScore = 0.5;
   let mathScore = 0.5;
   let creativeScore = 0.5;
   let analyticalScore = 0.5;
   
-  // Evaluate based on category
-  if (category.includes('code') || category.includes('programming') || 
-      category === 'technical-knowledge' || category === 'procedural-knowledge') {
-    codeScore = await evaluateCodeQuality(response, prompt);
-    // For code-related categories, code quality is most important
-    return {
-      codeQuality: codeScore,
-      mathematicalAccuracy: 0.5, // Neutral
-      creativeQuality: 0.5, // Neutral
+  try {
+    // Evaluate based on category
+    if (normalizedCategory.includes('code') || normalizedCategory.includes('programming') ||
+        normalizedCategory === 'technical-knowledge' || normalizedCategory === 'procedural-knowledge') {
+      console.log('Evaluating as code-related category');
+      codeScore = await evaluateCodeQuality(response, prompt);
+      analyticalScore = await evaluateAnalyticalDepth(response, prompt);
+      console.log(`Code score: ${codeScore}, Analytical score: ${analyticalScore}`);
+      
+      // For code-related categories, code quality is most important
+      return {
+        codeQuality: codeScore,
+        mathematicalAccuracy: 0.5, // Neutral
+        creativeQuality: 0.5, // Neutral
+        analyticalDepth: analyticalScore,
+        primaryCapability: 'codeQuality'
+      };
+    }
+    
+    if (normalizedCategory.includes('math') || normalizedCategory.includes('calculation') ||
+        normalizedCategory === 'problem-solving') {
+      console.log('Evaluating as math-related category');
+      mathScore = await evaluateMathematicalAccuracy(response, prompt);
+      analyticalScore = await evaluateAnalyticalDepth(response, prompt);
+      console.log(`Math score: ${mathScore}, Analytical score: ${analyticalScore}`);
+      
+      // For math-related categories, mathematical accuracy is most important
+      return {
+        codeQuality: 0.5, // Neutral
+        mathematicalAccuracy: mathScore,
+        creativeQuality: 0.5, // Neutral
+        analyticalDepth: analyticalScore,
+        primaryCapability: 'mathematicalAccuracy'
+      };
+    }
+    
+    if (normalizedCategory.includes('creative') || normalizedCategory.includes('writing') ||
+        normalizedCategory === 'creative-writing') {
+      console.log('Evaluating as creative category');
+      creativeScore = await evaluateCreativeQuality(response, prompt);
+      console.log(`Creative score: ${creativeScore}`);
+      
+      // For creative categories, creative quality is most important
+      return {
+        codeQuality: 0.5, // Neutral
+        mathematicalAccuracy: 0.5, // Neutral
+        creativeQuality: creativeScore,
+        analyticalDepth: 0.5, // Neutral
+        primaryCapability: 'creativeQuality'
+      };
+    }
+    
+    if (normalizedCategory.includes('analysis') || normalizedCategory.includes('analytical') ||
+        normalizedCategory === 'analytical-thinking' || normalizedCategory === 'reasoning') {
+      console.log('Evaluating as analytical category');
+      analyticalScore = await evaluateAnalyticalDepth(response, prompt);
+      console.log(`Analytical score: ${analyticalScore}`);
+      
+      // For analytical categories, analytical depth is most important
+      return {
+        codeQuality: 0.5, // Neutral
+        mathematicalAccuracy: 0.5, // Neutral
+        creativeQuality: 0.5, // Neutral
+        analyticalDepth: analyticalScore,
+        primaryCapability: 'analyticalDepth'
+      };
+    }
+    
+    // For other categories, evaluate all capabilities
+    console.log('Evaluating as general category');
+    const allScores = {
+      codeQuality: await evaluateCodeQuality(response, prompt),
+      mathematicalAccuracy: await evaluateMathematicalAccuracy(response, prompt),
+      creativeQuality: await evaluateCreativeQuality(response, prompt),
       analyticalDepth: await evaluateAnalyticalDepth(response, prompt),
-      primaryCapability: 'codeQuality'
+      primaryCapability: 'analyticalDepth' // Default to analytical depth
     };
-  }
-  
-  if (category.includes('math') || category.includes('calculation') || 
-      category === 'problem-solving') {
-    mathScore = await evaluateMathematicalAccuracy(response, prompt);
-    // For math-related categories, mathematical accuracy is most important
+    
+    console.log('All scores:', allScores);
+    return allScores;
+  } catch (error) {
+    console.error('Error in specialized capability evaluation:', error);
+    // Return default scores in case of error
     return {
-      codeQuality: 0.5, // Neutral
-      mathematicalAccuracy: mathScore,
-      creativeQuality: 0.5, // Neutral
-      analyticalDepth: await evaluateAnalyticalDepth(response, prompt),
-      primaryCapability: 'mathematicalAccuracy'
-    };
-  }
-  
-  if (category.includes('creative') || category.includes('writing') || 
-      category === 'creative-writing') {
-    creativeScore = await evaluateCreativeQuality(response, prompt);
-    // For creative categories, creative quality is most important
-    return {
-      codeQuality: 0.5, // Neutral
-      mathematicalAccuracy: 0.5, // Neutral
-      creativeQuality: creativeScore,
-      analyticalDepth: 0.5, // Neutral
-      primaryCapability: 'creativeQuality'
-    };
-  }
-  
-  if (category.includes('analysis') || category.includes('analytical') || 
-      category === 'analytical-thinking' || category === 'reasoning') {
-    analyticalScore = await evaluateAnalyticalDepth(response, prompt);
-    // For analytical categories, analytical depth is most important
-    return {
-      codeQuality: 0.5, // Neutral
-      mathematicalAccuracy: 0.5, // Neutral
-      creativeQuality: 0.5, // Neutral
-      analyticalDepth: analyticalScore,
+      codeQuality: 0.5,
+      mathematicalAccuracy: 0.5,
+      creativeQuality: 0.5,
+      analyticalDepth: 0.5,
       primaryCapability: 'analyticalDepth'
     };
   }
-  
-  // For other categories, evaluate all capabilities
-  return {
-    codeQuality: await evaluateCodeQuality(response, prompt),
-    mathematicalAccuracy: await evaluateMathematicalAccuracy(response, prompt),
-    creativeQuality: await evaluateCreativeQuality(response, prompt),
-    analyticalDepth: await evaluateAnalyticalDepth(response, prompt),
-    primaryCapability: 'analyticalDepth' // Default to analytical depth
-  };
 };
 
 /**
@@ -351,30 +400,59 @@ export const evaluateSpecializedCapabilities = async (response, prompt, category
  * @returns {number} - Overall score between 0 and 1
  */
 export const calculateOverallCapabilityScore = (capabilities) => {
-  if (!capabilities) return 0;
+  console.log('Calculating overall capability score for:', capabilities);
+  
+  // Safety check
+  if (!capabilities) {
+    console.warn('No capabilities provided, returning default score of 0.5');
+    return 0.5; // Return a neutral score instead of 0
+  }
   
   // If there's a primary capability, weight it more heavily
-  if (capabilities.primaryCapability) {
-    const primaryScore = capabilities[capabilities.primaryCapability];
+  if (capabilities.primaryCapability && capabilities[capabilities.primaryCapability] !== undefined) {
+    const primaryScore = capabilities[capabilities.primaryCapability] || 0.5;
+    console.log(`Primary capability: ${capabilities.primaryCapability}, score: ${primaryScore}`);
+    
     const otherScores = Object.entries(capabilities)
       .filter(([key]) => key !== 'primaryCapability' && key !== capabilities.primaryCapability)
-      .map(([_, value]) => value);
+      .map(([key, value]) => {
+        // Ensure we only include numeric scores
+        return typeof value === 'number' ? value : 0.5;
+      });
+    
+    console.log('Other capability scores:', otherScores);
+    
+    // Prevent division by zero
+    if (otherScores.length === 0) {
+      console.warn('No other scores found, using only primary score');
+      return primaryScore;
+    }
     
     const avgOtherScore = otherScores.reduce((sum, score) => sum + score, 0) / otherScores.length;
+    console.log(`Average of other scores: ${avgOtherScore}`);
     
     // Weight primary capability at 70%, others at 30%
-    return (primaryScore * 0.7) + (avgOtherScore * 0.3);
+    const weightedScore = (primaryScore * 0.7) + (avgOtherScore * 0.3);
+    console.log(`Weighted score: ${weightedScore}`);
+    
+    return weightedScore;
   }
   
   // Otherwise, take a simple average
   const scores = [
-    capabilities.codeQuality || 0,
-    capabilities.mathematicalAccuracy || 0,
-    capabilities.creativeQuality || 0,
-    capabilities.analyticalDepth || 0
+    typeof capabilities.codeQuality === 'number' ? capabilities.codeQuality : 0.5,
+    typeof capabilities.mathematicalAccuracy === 'number' ? capabilities.mathematicalAccuracy : 0.5,
+    typeof capabilities.creativeQuality === 'number' ? capabilities.creativeQuality : 0.5,
+    typeof capabilities.analyticalDepth === 'number' ? capabilities.analyticalDepth : 0.5
   ];
   
-  return scores.reduce((sum, score) => sum + score, 0) / scores.length;
+  console.log('All capability scores for averaging:', scores);
+  
+  // Calculate average (will always have 4 scores so no division by zero)
+  const avgScore = scores.reduce((sum, score) => sum + score, 0) / scores.length;
+  console.log(`Average score: ${avgScore}`);
+  
+  return avgScore;
 };
 
 /**
@@ -384,39 +462,58 @@ export const calculateOverallCapabilityScore = (capabilities) => {
  * @returns {string} - Summary of specialized capabilities
  */
 export const generateCapabilitySummary = (modelId, capabilities) => {
-  if (!capabilities) return '';
+  console.log(`Generating capability summary for model ${modelId}:`, capabilities);
   
-  // Format the model name for display
-  const modelName = modelId.split('/').pop().replace(/-/g, ' ').replace(/(\b\w)/g, match => match.toUpperCase());
+  // Safety check
+  if (!capabilities) {
+    console.warn(`No capabilities provided for model ${modelId}, returning default summary`);
+    return `${modelId.split('/').pop().replace(/-/g, ' ').replace(/(\b\w)/g, match => match.toUpperCase())} has not been evaluated for specialized capabilities.`;
+  }
   
-  // Determine the model's strongest capability
-  const capabilityScores = {
-    'Code Generation': capabilities.codeQuality || 0,
-    'Mathematical Accuracy': capabilities.mathematicalAccuracy || 0,
-    'Creative Writing': capabilities.creativeQuality || 0,
-    'Analytical Thinking': capabilities.analyticalDepth || 0
-  };
-  
-  const strongestCapability = Object.entries(capabilityScores)
-    .sort(([, a], [, b]) => b - a)[0][0];
-  
-  const weakestCapability = Object.entries(capabilityScores)
-    .sort(([, a], [, b]) => a - b)[0][0];
-  
-  // Generate performance descriptors
-  const getPerformanceLevel = (score) => {
-    if (score >= 0.8) return 'excellent';
-    if (score >= 0.6) return 'good';
-    if (score >= 0.4) return 'average';
-    if (score >= 0.2) return 'below average';
-    return 'poor';
-  };
-  
-  const overallScore = calculateOverallCapabilityScore(capabilities);
-  const overallPerformance = getPerformanceLevel(overallScore);
-  
-  // Generate the summary
-  return `${modelName} demonstrates ${overallPerformance} specialized capabilities with an overall score of ${(overallScore * 100).toFixed(0)}%. 
-The model excels in ${strongestCapability} (${(capabilityScores[strongestCapability] * 100).toFixed(0)}%) 
+  try {
+    // Format the model name for display
+    const modelName = modelId.split('/').pop().replace(/-/g, ' ').replace(/(\b\w)/g, match => match.toUpperCase());
+    
+    // Determine the model's strongest capability with safety checks
+    const capabilityScores = {
+      'Code Generation': typeof capabilities.codeQuality === 'number' ? capabilities.codeQuality : 0.5,
+      'Mathematical Accuracy': typeof capabilities.mathematicalAccuracy === 'number' ? capabilities.mathematicalAccuracy : 0.5,
+      'Creative Writing': typeof capabilities.creativeQuality === 'number' ? capabilities.creativeQuality : 0.5,
+      'Analytical Thinking': typeof capabilities.analyticalDepth === 'number' ? capabilities.analyticalDepth : 0.5
+    };
+    
+    console.log(`Capability scores for ${modelId}:`, capabilityScores);
+    
+    // Sort capabilities by score
+    const sortedCapabilities = Object.entries(capabilityScores).sort(([, a], [, b]) => b - a);
+    
+    // Get strongest and weakest capabilities
+    const strongestCapability = sortedCapabilities[0][0];
+    const weakestCapability = sortedCapabilities[sortedCapabilities.length - 1][0];
+    
+    console.log(`Strongest: ${strongestCapability}, Weakest: ${weakestCapability}`);
+    
+    // Generate performance descriptors
+    const getPerformanceLevel = (score) => {
+      if (score >= 0.8) return 'excellent';
+      if (score >= 0.6) return 'good';
+      if (score >= 0.4) return 'average';
+      if (score >= 0.2) return 'below average';
+      return 'poor';
+    };
+    
+    // Calculate overall score
+    const overallScore = calculateOverallCapabilityScore(capabilities);
+    const overallPerformance = getPerformanceLevel(overallScore);
+    
+    console.log(`Overall score: ${overallScore}, Performance level: ${overallPerformance}`);
+    
+    // Generate the summary
+    return `${modelName} demonstrates ${overallPerformance} specialized capabilities with an overall score of ${(overallScore * 100).toFixed(0)}%.
+The model excels in ${strongestCapability} (${(capabilityScores[strongestCapability] * 100).toFixed(0)}%)
 but shows room for improvement in ${weakestCapability} (${(capabilityScores[weakestCapability] * 100).toFixed(0)}%).`;
+  } catch (error) {
+    console.error(`Error generating capability summary for ${modelId}:`, error);
+    return `${modelId.split('/').pop().replace(/-/g, ' ').replace(/(\b\w)/g, match => match.toUpperCase())} has specialized capabilities that could not be properly evaluated.`;
+  }
 };

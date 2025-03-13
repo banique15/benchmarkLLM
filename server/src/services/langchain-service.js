@@ -407,6 +407,66 @@ export const generateChatCompletion = async (model, messages, options = {}, apiK
   }
 };
 
+// Import the validateApiKey and checkModelTokenCapacity functions from openrouter.js
+import { validateApiKey, checkModelTokenCapacity } from './openrouter.js';
+import dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
+
+// Get the credit limit from environment variable or use a reasonable default
+const DEFAULT_CREDIT_LIMIT = process.env.OPENROUTER_CREDIT_LIMIT || '1000';
+
+/**
+ * Check available token capacity for OpenRouter
+ * @param {string} apiKey - OpenRouter API key
+ * @param {string} modelId - Model ID to check capacity for
+ * @returns {Promise<number>} - Available token capacity
+ */
+export const checkTokenCapacity = async (apiKey, modelId) => {
+  try {
+    // Create a mock request object with the credit limit from environment
+    const mockReq = {
+      apiKey: apiKey,
+      creditLimit: DEFAULT_CREDIT_LIMIT
+    };
+    
+    // First try to get capacity information from validateApiKey
+    const keyValidation = await validateApiKey(apiKey, mockReq);
+    
+    if (!keyValidation.valid) {
+      console.error('API key validation failed:', keyValidation.error);
+      return 300; // Conservative estimate
+    }
+    
+    // If we have credits information from validateApiKey, use it
+    if (keyValidation.credits !== null && keyValidation.credits !== undefined) {
+      console.log(`Available OpenRouter credits from validateApiKey: ${keyValidation.credits}`);
+      return keyValidation.credits;
+    }
+    
+    // If we don't have credits information, try checkModelTokenCapacity
+    if (modelId) {
+      const capacityCheck = await checkModelTokenCapacity(modelId, apiKey, mockReq);
+      
+      if (capacityCheck.availableCapacity) {
+        console.log(`Available token capacity for model ${modelId}: ${capacityCheck.availableCapacity}`);
+        return capacityCheck.availableCapacity;
+      }
+    }
+    
+    // If we still don't have capacity information, extract it from error messages
+    // This is done in the generateWithLangchain function when handling errors
+    
+    // Return a conservative estimate if we can't determine the capacity
+    return parseInt(DEFAULT_CREDIT_LIMIT, 10) * 0.3; // 30% of the credit limit as a conservative estimate
+  } catch (error) {
+    console.error('Error checking token capacity:', error.message);
+    // Return a conservative estimate if we can't check
+    return parseInt(DEFAULT_CREDIT_LIMIT, 10) * 0.3; // 30% of the credit limit as a conservative estimate
+  }
+};
+
 /**
  * Generate text using LangChain with a simple prompt
  * @param {string} prompt - The prompt text
@@ -418,9 +478,47 @@ export const generateWithLangchain = async (prompt, options = {}, apiKey = proce
   try {
     console.log('Generating text with LangChain');
     
-    // Create a model instance
+    // Get the model from options
     const model = options.model || "openai/gpt-4-turbo";
-    const llm = getModelInstance(model, options, apiKey);
+    
+    // Check available token capacity for this specific model
+    const availableCapacity = await checkTokenCapacity(apiKey, model);
+    
+    // Adjust options based on available capacity
+    const adjustedOptions = { ...options };
+    
+    // If requested max_tokens exceeds available capacity, adjust it
+    if (adjustedOptions.max_tokens && adjustedOptions.max_tokens > availableCapacity) {
+      console.log(`Adjusting max_tokens from ${adjustedOptions.max_tokens} to ${availableCapacity - 50} due to capacity limits`);
+      // Leave some buffer for the prompt tokens
+      adjustedOptions.max_tokens = Math.max(100, availableCapacity - 50);
+    }
+    
+    // If capacity is very low, use a more efficient model
+    let modelToUse = model;
+    
+    if (availableCapacity < 500) {
+      // For Claude models, switch to GPT-3.5 Turbo
+      if (model.includes('claude-3')) {
+        console.log(`Low token capacity (${availableCapacity}) for Claude model, switching to GPT-3.5 Turbo`);
+        modelToUse = "openai/gpt-3.5-turbo";
+      }
+      // For GPT-4 models, switch to GPT-3.5 Turbo
+      else if (model.includes('gpt-4')) {
+        console.log(`Low token capacity (${availableCapacity}) for GPT-4 model, switching to GPT-3.5 Turbo`);
+        modelToUse = "openai/gpt-3.5-turbo";
+      }
+      // For other models, keep the original but reduce max_tokens further
+      else {
+        console.log(`Low token capacity (${availableCapacity}), reducing max_tokens further`);
+        adjustedOptions.max_tokens = Math.max(50, availableCapacity - 100);
+      }
+    }
+    
+    console.log(`Using model ${modelToUse} with max_tokens ${adjustedOptions.max_tokens || 'default'}`);
+    
+    // Create a model instance with adjusted parameters
+    const llm = getModelInstance(modelToUse, adjustedOptions, apiKey);
     
     // Call the model directly
     const response = await llm.invoke({ input: prompt });
@@ -428,6 +526,64 @@ export const generateWithLangchain = async (prompt, options = {}, apiKey = proce
     return response;
   } catch (error) {
     console.error('Error generating text with LangChain:', error.message);
+    
+    // If the error is related to token capacity, try again with reduced requirements
+    if (error.message.includes('token capacity required') || error.message.includes('credits are required')) {
+      console.log('Token capacity error detected, retrying with minimal requirements');
+      
+      // Extract available capacity from error message if possible
+      const capacityMatch = error.message.match(/(\d+) token capacity required, (\d+) available/);
+      const availableCapacity = capacityMatch ? parseInt(capacityMatch[2]) : 200;
+      
+      console.log(`Extracted available capacity from error: ${availableCapacity}`);
+      
+      // Create minimal options
+      const minimalOptions = {
+        ...options,
+        model: "openai/gpt-3.5-turbo", // Use most efficient model
+        max_tokens: Math.max(50, availableCapacity - 50) // Leave buffer for prompt
+      };
+      
+      console.log(`Retrying with model ${minimalOptions.model} and max_tokens ${minimalOptions.max_tokens}`);
+      
+      // Create a model instance with minimal requirements
+      const llm = getModelInstance(minimalOptions.model, minimalOptions, apiKey);
+      
+      try {
+        // Call the model directly
+        return await llm.invoke({ input: prompt });
+      } catch (retryError) {
+        console.error('Error in retry attempt:', retryError.message);
+        
+        // If we still have an error, try one last time with an even smaller request
+        if (retryError.message.includes('token capacity required') || retryError.message.includes('credits are required')) {
+          // Extract available capacity again
+          const retryCapacityMatch = retryError.message.match(/(\d+) token capacity required, (\d+) available/);
+          const retryAvailableCapacity = retryCapacityMatch ? parseInt(retryCapacityMatch[2]) : 100;
+          
+          // Create absolute minimal options
+          const lastResortOptions = {
+            model: "openai/gpt-3.5-turbo",
+            temperature: 0.7,
+            max_tokens: Math.max(20, retryAvailableCapacity - 80) // Leave even more buffer
+          };
+          
+          console.log(`Final retry with max_tokens ${lastResortOptions.max_tokens}`);
+          
+          // Create a model instance with absolute minimal requirements
+          const lastResortLlm = getModelInstance(lastResortOptions.model, lastResortOptions, apiKey);
+          
+          // Simplify the prompt if possible
+          const simplifiedPrompt = prompt.length > 500 ? prompt.substring(0, 500) + "..." : prompt;
+          
+          // Call the model with simplified prompt
+          return await lastResortLlm.invoke({ input: simplifiedPrompt });
+        }
+        
+        throw retryError;
+      }
+    }
+    
     throw error;
   }
 };

@@ -428,68 +428,9 @@ const AdvancedResultsView = ({ benchmarkResult, benchmarkConfig }) => {
                   </div>
                 </div>
                 
-                {/* Specialized Capabilities Section */}
+                {/* Category Analysis Section */}
                 <div className="grid grid-cols-1 gap-4">
-                  
-                  {/* Specialized Capabilities Section */}
-                  {analysis.domainAnalysisSummary?.specializedCapabilitySummary && (
-                    <div className="bg-white p-4 rounded-lg border border-gray-200">
-                      <h4 className="font-medium text-dark-600 mb-3">Specialized Capabilities</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                        <div className="bg-blue-50 p-3 rounded">
-                          <h5 className="text-sm font-medium text-blue-700 mb-1">Code Generation</h5>
-                          <div className="flex items-center">
-                            <div className="p-2 rounded-md bg-blue-100 mr-2">
-                              <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-                              </svg>
-                            </div>
-                            <span className="font-medium text-sm">{analysis.domainAnalysisSummary.specializedCapabilitySummary.bestForCode}</span>
-                          </div>
-                          <p className="text-xs text-blue-600 mt-1">Score: {(analysis.domainAnalysisSummary.specializedCapabilitySummary.avgCodeQuality * 100).toFixed(0)}%</p>
-                        </div>
-                        
-                        <div className="bg-green-50 p-3 rounded">
-                          <h5 className="text-sm font-medium text-green-700 mb-1">Mathematical Tasks</h5>
-                          <div className="flex items-center">
-                            <div className="p-2 rounded-md bg-green-100 mr-2">
-                              <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                              </svg>
-                            </div>
-                            <span className="font-medium text-sm">{analysis.domainAnalysisSummary.specializedCapabilitySummary.bestForMath}</span>
-                          </div>
-                          <p className="text-xs text-green-600 mt-1">Score: {(analysis.domainAnalysisSummary.specializedCapabilitySummary.avgMathAccuracy * 100).toFixed(0)}%</p>
-                        </div>
-                        
-                        <div className="bg-purple-50 p-3 rounded">
-                          <h5 className="text-sm font-medium text-purple-700 mb-1">Creative Writing</h5>
-                          <div className="flex items-center">
-                            <div className="p-2 rounded-md bg-purple-100 mr-2">
-                              <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                              </svg>
-                            </div>
-                            <span className="font-medium text-sm">{analysis.domainAnalysisSummary.specializedCapabilitySummary.bestForCreative}</span>
-                          </div>
-                          <p className="text-xs text-purple-600 mt-1">Score: {(analysis.domainAnalysisSummary.specializedCapabilitySummary.avgCreativeQuality * 100).toFixed(0)}%</p>
-                        </div>
-                        
-                        <div className="bg-amber-50 p-3 rounded">
-                          <h5 className="text-sm font-medium text-amber-700 mb-1">Analytical Thinking</h5>
-                          <div className="flex items-center">
-                            <div className="p-2 rounded-md bg-amber-100 mr-2">
-                              <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                              </svg>
-                            </div>
-                            <span className="font-medium text-sm">{analysis.domainAnalysisSummary.specializedCapabilitySummary.bestForAnalytical}</span>
-                          </div>
-                          <p className="text-xs text-amber-600 mt-1">Score: {(analysis.domainAnalysisSummary.specializedCapabilitySummary.avgAnalyticalDepth * 100).toFixed(0)}%</p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                  {/* Category analysis content will be shown here */}
                 </div>
               </div>
             )}
@@ -575,34 +516,7 @@ const AdvancedResultsView = ({ benchmarkResult, benchmarkConfig }) => {
                       </div>
                     </div>
                     
-                    {/* Specialized Capabilities Section */}
-                    {analysis.domainAnalysisSummary.specializedCapabilitySummary && (
-                      <div className="mb-4 bg-gray-50 p-3 rounded-lg">
-                        <h5 className="text-sm font-medium text-gray-600 mb-2">Specialized Capabilities</h5>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          <div>
-                            <p className="text-xs font-medium text-gray-500">Best for Code Generation</p>
-                            <p className="text-sm text-gray-700 font-medium">{analysis.domainAnalysisSummary.specializedCapabilitySummary.bestForCode}</p>
-                            <p className="text-xs text-gray-500">Avg. Score: {(analysis.domainAnalysisSummary.specializedCapabilitySummary.avgCodeQuality * 100).toFixed(0)}%</p>
-                          </div>
-                          <div>
-                            <p className="text-xs font-medium text-gray-500">Best for Mathematical Tasks</p>
-                            <p className="text-sm text-gray-700 font-medium">{analysis.domainAnalysisSummary.specializedCapabilitySummary.bestForMath}</p>
-                            <p className="text-xs text-gray-500">Avg. Score: {(analysis.domainAnalysisSummary.specializedCapabilitySummary.avgMathAccuracy * 100).toFixed(0)}%</p>
-                          </div>
-                          <div>
-                            <p className="text-xs font-medium text-gray-500">Best for Creative Writing</p>
-                            <p className="text-sm text-gray-700 font-medium">{analysis.domainAnalysisSummary.specializedCapabilitySummary.bestForCreative}</p>
-                            <p className="text-xs text-gray-500">Avg. Score: {(analysis.domainAnalysisSummary.specializedCapabilitySummary.avgCreativeQuality * 100).toFixed(0)}%</p>
-                          </div>
-                          <div>
-                            <p className="text-xs font-medium text-gray-500">Best for Analytical Thinking</p>
-                            <p className="text-sm text-gray-700 font-medium">{analysis.domainAnalysisSummary.specializedCapabilitySummary.bestForAnalytical}</p>
-                            <p className="text-xs text-gray-500">Avg. Score: {(analysis.domainAnalysisSummary.specializedCapabilitySummary.avgAnalyticalDepth * 100).toFixed(0)}%</p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                    {/* Domain expertise categories will be shown here */}
                     
                     {/* Recommendations */}
                     {analysis.domainAnalysisSummary.recommendations && (
@@ -667,81 +581,7 @@ const AdvancedResultsView = ({ benchmarkResult, benchmarkConfig }) => {
                       
                       {/* Strengths and Weaknesses section removed */}
                       
-                      {/* Enhanced Specialized Capabilities */}
-                      {model.specializedCapabilities && (
-                        <div className="mb-2">
-                          <h5 className="text-xs font-medium text-gray-500 mb-1">Specialized Capabilities</h5>
-                          <div className="grid grid-cols-2 gap-2">
-                            <div className="flex items-center bg-blue-50 rounded px-2 py-1">
-                              <div className="mr-2">
-                                <svg className="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-                                </svg>
-                              </div>
-                              <div className="flex-grow">
-                                <div className="flex justify-between">
-                                  <span className="text-xs text-blue-700">Code</span>
-                                  <span className="text-xs font-medium text-blue-700">{(model.specializedCapabilities.codeQuality * 100).toFixed(0)}%</span>
-                                </div>
-                                <div className="w-full bg-blue-200 rounded-full h-1 mt-1">
-                                  <div className="bg-blue-600 h-1 rounded-full" style={{ width: `${model.specializedCapabilities.codeQuality * 100}%` }}></div>
-                                </div>
-                              </div>
-                            </div>
-                            
-                            <div className="flex items-center bg-green-50 rounded px-2 py-1">
-                              <div className="mr-2">
-                                <svg className="w-3 h-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                                </svg>
-                              </div>
-                              <div className="flex-grow">
-                                <div className="flex justify-between">
-                                  <span className="text-xs text-green-700">Math</span>
-                                  <span className="text-xs font-medium text-green-700">{(model.specializedCapabilities.mathematicalAccuracy * 100).toFixed(0)}%</span>
-                                </div>
-                                <div className="w-full bg-green-200 rounded-full h-1 mt-1">
-                                  <div className="bg-green-600 h-1 rounded-full" style={{ width: `${model.specializedCapabilities.mathematicalAccuracy * 100}%` }}></div>
-                                </div>
-                              </div>
-                            </div>
-                            
-                            <div className="flex items-center bg-purple-50 rounded px-2 py-1">
-                              <div className="mr-2">
-                                <svg className="w-3 h-3 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
-                              </div>
-                              <div className="flex-grow">
-                                <div className="flex justify-between">
-                                  <span className="text-xs text-purple-700">Creative</span>
-                                  <span className="text-xs font-medium text-purple-700">{(model.specializedCapabilities.creativeQuality * 100).toFixed(0)}%</span>
-                                </div>
-                                <div className="w-full bg-purple-200 rounded-full h-1 mt-1">
-                                  <div className="bg-purple-600 h-1 rounded-full" style={{ width: `${model.specializedCapabilities.creativeQuality * 100}%` }}></div>
-                                </div>
-                              </div>
-                            </div>
-                            
-                            <div className="flex items-center bg-amber-50 rounded px-2 py-1">
-                              <div className="mr-2">
-                                <svg className="w-3 h-3 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                                </svg>
-                              </div>
-                              <div className="flex-grow">
-                                <div className="flex justify-between">
-                                  <span className="text-xs text-amber-700">Analytical</span>
-                                  <span className="text-xs font-medium text-amber-700">{(model.specializedCapabilities.analyticalDepth * 100).toFixed(0)}%</span>
-                                </div>
-                                <div className="w-full bg-amber-200 rounded-full h-1 mt-1">
-                                  <div className="bg-amber-600 h-1 rounded-full" style={{ width: `${model.specializedCapabilities.analyticalDepth * 100}%` }}></div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
+                      {/* Category-based performance metrics will be shown here */}
                     </div>
                   ))}
                 </div>

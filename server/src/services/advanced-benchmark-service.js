@@ -2,7 +2,7 @@ import supabase from '../supabase.js';
 import { getOpenRouterModels } from './openrouter.js';
 import { generateWithLangchain } from './langchain-service.js';
 import { v4 as uuidv4 } from 'uuid';
-import * as specializedCapabilityService from './specialized-capability-service.js';
+// Removed specialized capability service import
 
 /**
  * Helper function to extract JSON array from LLM response
@@ -44,7 +44,7 @@ const extractJsonArrayFromResponse = (response) => {
  * @param {number} count - Number of test cases to generate
  * @returns {Promise<Array>} - Array of generated test cases
  */
-export const generateTestCases = async (topic, count = 20) => {
+export const generateTestCases = async (topic, count = 10) => {
   try {
     // Use LangChain to generate test cases
     const prompt = `
@@ -53,8 +53,8 @@ export const generateTestCases = async (topic, count = 20) => {
       Create ${count} diverse test cases for evaluating language models on the topic: "${topic}".
       
       For each test case, include:
-      1. A clear, specific prompt that tests knowledge or capabilities related to ${topic}
-      2. The expected output or key points that should be included in a good response
+      1. A clear, specific prompt that tests knowledge or capabilities related to ${topic}. Keep prompts concise and focused.
+      2. The expected output should focus on key points and evaluation criteria rather than full detailed responses.
       3. A category for the test case using one of these standardized categories:
          - factual-knowledge: Testing recall of facts and information
          - problem-solving: Testing ability to solve problems or puzzles
@@ -74,7 +74,7 @@ export const generateTestCases = async (topic, count = 20) => {
           "name": "Brief descriptive name",
           "category": "category-name",
           "prompt": "The actual prompt text",
-          "expectedOutput": "Expected output or key points"
+          "expectedOutput": "Key points for evaluation"
         }
       ]
       
@@ -85,15 +85,16 @@ export const generateTestCases = async (topic, count = 20) => {
       - Avoid ambiguous questions with multiple valid answers
       - Are challenging but fair
       - Use a balanced mix of the standardized categories listed above
+      - Keep all content concise and focused. Prioritize quality over quantity.
       
       Return only the JSON array with no additional text.
     `;
 
-    // Use Gemini Flash 2.0 with a lower max_tokens setting to avoid token capacity issues
+    // Use Claude 3 Haiku with optimized token settings for cost-efficiency
     const response = await generateWithLangchain(prompt, {
-      model: "google/gemini-2.0-flash-001",  // Using Gemini 2.0 Flash with the correct model ID
+      model: "anthropic/claude-3-haiku",  // Using Claude 3 Haiku for better test case generation
       temperature: 0.7,
-      max_tokens: 1500  // Reduced to stay within available token capacity
+      max_tokens: 1000  // Reduced to optimize for cost while maintaining quality
     });
 
     // Parse the response as JSON
@@ -363,11 +364,11 @@ export const selectModels = async (topic, maxModels = 50, prioritizeCost = false
       Return only the JSON array with no additional text.
     `;
 
-    // Use Gemini Flash 2.0 with a lower max_tokens setting to avoid token capacity issues
+    // Use Claude 3 Haiku with optimized token settings for cost-efficiency
     const response = await generateWithLangchain(prompt, {
-      model: "google/gemini-2.0-flash-001",  // Using Gemini 2.0 Flash with the correct model ID
+      model: "anthropic/claude-3-haiku",  // Using Claude 3 Haiku for model selection
       temperature: 0.7,
-      max_tokens: 1500  // Reduced to stay within available token capacity
+      max_tokens: 1000  // Reduced to optimize for cost while maintaining quality
     });
 
     // Parse the response as JSON
@@ -641,17 +642,7 @@ export const analyzeResults = async (benchmarkResult, rankings, analysisType = '
         // Add domain analysis summary to general analysis
         summary.domainAnalysisSummary = domainAnalysis.domainAnalysisSummary;
         
-        // Add specialized capabilities to top models
-        if (summary.topModels && domainAnalysis.domainInsights) {
-          summary.topModels.forEach(model => {
-            const domainInsight = domainAnalysis.domainInsights.find(
-              insight => insight.model_id === model.model_id
-            );
-            if (domainInsight) {
-              model.specializedCapabilities = domainInsight.specializedCapabilities;
-            }
-          });
-        }
+        // No specialized capabilities to add
         
         return {
           rankings,
@@ -908,10 +899,10 @@ const analyzeCostEfficiency = async (benchmarkResult, rankings) => {
 };
 
 /**
- * Analyze specialized capabilities of models
+ * Analyze domain expertise of models based on categories
  * @param {Object} benchmarkResult - The benchmark result object
  * @param {Array} rankings - The model rankings
- * @returns {Promise<Object>} - The specialized capability analysis
+ * @returns {Promise<Object>} - The domain expertise analysis
  */
 const analyzeDomainExpertise = async (benchmarkResult, rankings) => {
   try {
@@ -1013,7 +1004,7 @@ const analyzeDomainExpertise = async (benchmarkResult, rankings) => {
     // Get topic information
     const topic = benchmarkResult.benchmark_configs?.topic || 'Unknown';
     
-    // Generate specialized capability insights for each model
+    // Generate domain expertise insights for each model
     const domainInsights = [];
     
     for (const modelId of modelIds) {
@@ -1031,62 +1022,30 @@ const analyzeDomainExpertise = async (benchmarkResult, rankings) => {
         continue;
       }
       
-      // Evaluate specialized capabilities for each test case
-      const capabilityResults = [];
+      // Group results by category
+      const resultsByCategory = {};
       
       for (const result of modelResults) {
         const category = testCaseCategories[result.test_case_id] || 'unknown';
         
-        // Skip test cases without necessary data
-        if (!result.output || !result.prompt) continue;
-        
-        // Evaluate specialized capabilities
-        const capabilities = await specializedCapabilityService.evaluateSpecializedCapabilities(
-          result.output,
-          result.prompt,
-          category
-        );
-        
-        capabilityResults.push({
-          testCaseId: result.test_case_id,
-          category,
-          capabilities
-        });
-      }
-      
-      // Calculate average scores for each capability
-      const avgCodeQuality = capabilityResults.reduce((sum, r) => sum + r.capabilities.codeQuality, 0) / capabilityResults.length;
-      const avgMathAccuracy = capabilityResults.reduce((sum, r) => sum + r.capabilities.mathematicalAccuracy, 0) / capabilityResults.length;
-      const avgCreativeQuality = capabilityResults.reduce((sum, r) => sum + r.capabilities.creativeQuality, 0) / capabilityResults.length;
-      const avgAnalyticalDepth = capabilityResults.reduce((sum, r) => sum + r.capabilities.analyticalDepth, 0) / capabilityResults.length;
-      
-      // Calculate overall score
-      const overallScore = (avgCodeQuality + avgMathAccuracy + avgCreativeQuality + avgAnalyticalDepth) / 4;
-      
-      // Group results by category
-      const resultsByCategory = {};
-      capabilityResults.forEach(result => {
-        if (!resultsByCategory[result.category]) {
-          resultsByCategory[result.category] = [];
+        if (!resultsByCategory[category]) {
+          resultsByCategory[category] = [];
         }
-        resultsByCategory[result.category].push(result);
-      });
+        
+        resultsByCategory[category].push(result);
+      }
       
       // Calculate average score by category
       const categoryScores = Object.entries(resultsByCategory).map(([category, results]) => {
-        // Calculate average overall score for this category
-        const categoryOverallScores = results.map(r =>
-          specializedCapabilityService.calculateOverallCapabilityScore(r.capabilities)
-        );
-        const avgScore = categoryOverallScores.reduce((sum, score) => sum + score, 0) / categoryOverallScores.length;
+        // Calculate average accuracy score for this category
+        const avgScore = results.reduce((sum, r) => sum + (r.accuracy_score || 0.5), 0) / results.length;
         
         // Get sample responses
-        const sampleResponses = modelResults
-          .filter(tcr => testCaseCategories[tcr.test_case_id] === category)
+        const sampleResponses = results
           .slice(0, 2)
           .map(tcr => ({
             prompt: tcr.prompt,
-            output: tcr.output.substring(0, 150) + (tcr.output.length > 150 ? '...' : ''),
+            output: tcr.output?.substring(0, 150) + (tcr.output?.length > 150 ? '...' : '') || '',
             score: avgScore
           }));
         
@@ -1105,40 +1064,66 @@ const analyzeDomainExpertise = async (benchmarkResult, rankings) => {
       const strengths = categoryScores.slice(0, Math.min(3, categoryScores.length));
       const weaknesses = [...categoryScores].sort((a, b) => a.score - b.score).slice(0, Math.min(3, categoryScores.length));
       
-      // Calculate score distribution
-      const allScores = capabilityResults.map(r =>
-        specializedCapabilityService.calculateOverallCapabilityScore(r.capabilities)
-      );
+      // Calculate overall domain expertise score as average of category scores
+      const allCategoryScores = categoryScores.map(cat => cat.score);
+      const overallScore = allCategoryScores.reduce((sum, score) => sum + score, 0) / allCategoryScores.length;
       
+      // Calculate score distribution
       const scoreDistribution = {
-        excellent: allScores.filter(score => score >= 0.8).length,
-        good: allScores.filter(score => score >= 0.6 && score < 0.8).length,
-        average: allScores.filter(score => score >= 0.4 && score < 0.6).length,
-        poor: allScores.filter(score => score >= 0.2 && score < 0.4).length,
-        veryPoor: allScores.filter(score => score < 0.2).length
+        excellent: allCategoryScores.filter(score => score >= 0.8).length,
+        good: allCategoryScores.filter(score => score >= 0.6 && score < 0.8).length,
+        average: allCategoryScores.filter(score => score >= 0.4 && score < 0.6).length,
+        poor: allCategoryScores.filter(score => score >= 0.2 && score < 0.4).length,
+        veryPoor: allCategoryScores.filter(score => score < 0.2).length
       };
       
       // Calculate consistency score (lower standard deviation = more consistent)
-      const mean = allScores.reduce((sum, score) => sum + score, 0) / allScores.length;
-      const variance = allScores.reduce((sum, score) => sum + Math.pow(score - mean, 2), 0) / allScores.length;
+      const mean = allCategoryScores.reduce((sum, score) => sum + score, 0) / allCategoryScores.length;
+      const variance = allCategoryScores.reduce((sum, score) => sum + Math.pow(score - mean, 2), 0) / allCategoryScores.length;
       const stdDev = Math.sqrt(variance);
       const consistencyScore = Math.max(0, 1 - stdDev);
       
-      // Create specialized capability metrics
-      const specializedCapabilities = {
-        codeQuality: avgCodeQuality,
-        mathematicalAccuracy: avgMathAccuracy,
-        creativeQuality: avgCreativeQuality,
-        analyticalDepth: avgAnalyticalDepth
-      };
+      // Generate domain summary
+      const modelName = modelId.split('/').pop().replace(/-/g, ' ').replace(/(\b\w)/g, match => match.toUpperCase());
+      
+      // Generate a performance descriptor based on the score
+      let performanceLevel = 'poor';
+      if (overallScore >= 0.8) {
+        performanceLevel = 'excellent';
+      } else if (overallScore >= 0.6) {
+        performanceLevel = 'good';
+      } else if (overallScore >= 0.4) {
+        performanceLevel = 'average';
+      } else if (overallScore >= 0.2) {
+        performanceLevel = 'below average';
+      }
+      
+      // Generate a consistency descriptor
+      let consistencyLevel = 'inconsistent';
+      if (consistencyScore >= 0.8) {
+        consistencyLevel = 'highly consistent';
+      } else if (consistencyScore >= 0.6) {
+        consistencyLevel = 'consistent';
+      } else if (consistencyScore >= 0.4) {
+        consistencyLevel = 'moderately consistent';
+      }
+      
+      // Format strengths and weaknesses
+      const strengthsList = strengths.map(s => `${s.category} (${(s.score * 100).toFixed(0)}%)`).join(', ');
+      const weaknessesList = weaknesses.map(w => `${w.category} (${(w.score * 100).toFixed(0)}%)`).join(', ');
+      
+      // Generate the summary
+      const domainSummary = `${modelName} demonstrates ${performanceLevel} domain expertise in ${topic} with an overall score of ${(overallScore * 100).toFixed(0)}%.
+The model is ${consistencyLevel} across different test categories.
+Key strengths: ${strengthsList}.
+Areas for improvement: ${weaknessesList}.`;
       
       // Add to domain insights
       domainInsights.push({
         model_id: modelId,
         domainExpertiseRank: ranking.domain_expertise_rank,
         overallRank: ranking.overall_rank,
-        domainExpertiseScore: overallScore, // Use specialized capability score as domain expertise score
-        specializedCapabilities,
+        domainExpertiseScore: overallScore,
         strengths,
         weaknesses,
         metrics: {
@@ -1151,18 +1136,18 @@ const analyzeDomainExpertise = async (benchmarkResult, rankings) => {
           worstCategory: categoryScores[categoryScores.length - 1]?.category || 'None',
           worstCategoryScore: categoryScores[categoryScores.length - 1]?.score || 0
         },
-        domainSummary: specializedCapabilityService.generateCapabilitySummary(modelId, specializedCapabilities)
+        domainSummary
       });
     }
     
     if (domainInsights.length === 0) {
-      throw new Error('No valid specialized capability insights could be generated');
+      throw new Error('No valid domain expertise insights could be generated');
     }
     
     // Sort by domain expertise rank
     domainInsights.sort((a, b) => a.domainExpertiseRank - b.domainExpertiseRank);
     
-    // Generate overall specialized capability analysis
+    // Generate overall domain expertise analysis
     const topPerformer = domainInsights[0];
     const domainAnalysisSummary = {
       topic,
@@ -1171,26 +1156,14 @@ const analyzeDomainExpertise = async (benchmarkResult, rankings) => {
         model_id: topPerformer.model_id,
         score: topPerformer.domainExpertiseScore,
         strengths: topPerformer.strengths,
-        topCategory: topPerformer.metrics.topCategory,
-        specializedCapabilities: topPerformer.specializedCapabilities
+        topCategory: topPerformer.metrics.topCategory
       } : null,
       averageScore: domainInsights.reduce((sum, model) => sum + model.metrics.overallScore, 0) / domainInsights.length,
       categoryAnalysis: analyzeCategoriesAcrossModels(domainInsights),
-      recommendations: generateDomainRecommendations(domainInsights, topic),
-      // Add specialized capability summary
-      specializedCapabilitySummary: {
-        avgCodeQuality: domainInsights.reduce((sum, model) => sum + model.specializedCapabilities.codeQuality, 0) / domainInsights.length,
-        avgMathAccuracy: domainInsights.reduce((sum, model) => sum + model.specializedCapabilities.mathematicalAccuracy, 0) / domainInsights.length,
-        avgCreativeQuality: domainInsights.reduce((sum, model) => sum + model.specializedCapabilities.creativeQuality, 0) / domainInsights.length,
-        avgAnalyticalDepth: domainInsights.reduce((sum, model) => sum + model.specializedCapabilities.analyticalDepth, 0) / domainInsights.length,
-        bestForCode: domainInsights.sort((a, b) => b.specializedCapabilities.codeQuality - a.specializedCapabilities.codeQuality)[0].model_id,
-        bestForMath: domainInsights.sort((a, b) => b.specializedCapabilities.mathematicalAccuracy - a.specializedCapabilities.mathematicalAccuracy)[0].model_id,
-        bestForCreative: domainInsights.sort((a, b) => b.specializedCapabilities.creativeQuality - a.specializedCapabilities.creativeQuality)[0].model_id,
-        bestForAnalytical: domainInsights.sort((a, b) => b.specializedCapabilities.analyticalDepth - a.specializedCapabilities.analyticalDepth)[0].model_id
-      }
+      recommendations: generateDomainRecommendations(domainInsights, topic)
     };
     
-    // Update rankings with new specialized capability scores
+    // Update rankings with new domain expertise scores
     const updatedRankings = [...rankings];
     for (const insight of domainInsights) {
       const rankingIndex = updatedRankings.findIndex(r => r.model_id === insight.model_id);
@@ -1199,7 +1172,7 @@ const analyzeDomainExpertise = async (benchmarkResult, rankings) => {
       }
     }
     
-    // Re-sort rankings by specialized capability score
+    // Re-sort rankings by domain expertise score
     updatedRankings.sort((a, b) => b.domain_expertise_score - a.domain_expertise_score);
     
     // Reassign domain expertise ranks
@@ -1213,7 +1186,7 @@ const analyzeDomainExpertise = async (benchmarkResult, rankings) => {
       domainAnalysisSummary
     };
   } catch (error) {
-    console.error('Error analyzing specialized capabilities:', error);
+    console.error('Error analyzing domain expertise:', error);
     
     // Return a basic response with error information
     return {
@@ -1294,23 +1267,9 @@ const generateSummary = (benchmarkResult, rankings) => {
       // Find test case results for this model
       const modelResults = benchmarkResult.test_case_results?.filter(tcr => tcr.model_id === model.model_id) || [];
       
-      // Calculate average scores
-      let avgDomainExpertiseScore;
-      
-      // If the model has specialized capabilities, use them to calculate domain expertise score
-      if (model.specializedCapabilities) {
-        // Calculate domain expertise as the average of specialized capabilities
-        avgDomainExpertiseScore = (
-          model.specializedCapabilities.codeQuality +
-          model.specializedCapabilities.mathematicalAccuracy +
-          model.specializedCapabilities.creativeQuality +
-          model.specializedCapabilities.analyticalDepth
-        ) / 4;
-      } else {
-        // Fall back to the original calculation if specialized capabilities aren't available
-        avgDomainExpertiseScore = modelResults.reduce((sum, tcr) => sum + (tcr.domain_expertise_score || 0), 0) /
-                                 (modelResults.filter(tcr => tcr.domain_expertise_score !== null && tcr.domain_expertise_score !== undefined).length || 1);
-      }
+      // Calculate average domain expertise score
+      const avgDomainExpertiseScore = modelResults.reduce((sum, tcr) => sum + (tcr.domain_expertise_score || 0), 0) /
+                               (modelResults.filter(tcr => tcr.domain_expertise_score !== null && tcr.domain_expertise_score !== undefined).length || 1);
       
       const avgAccuracyScore = modelResults.reduce((sum, tcr) => sum + (tcr.accuracy_score || 0), 0) /
                               (modelResults.filter(tcr => tcr.accuracy_score !== null && tcr.accuracy_score !== undefined).length || 1);
@@ -1351,10 +1310,10 @@ const generateSummary = (benchmarkResult, rankings) => {
       topic: benchmarkResult.benchmark_configs?.topic || 'Unknown',
       totalModels: rankings.length,
       scoringMethodology: {
-        description: "Models are ranked based on a weighted average of key metrics including specialized capabilities",
+        description: "Models are ranked based on a weighted average of key metrics",
         weights: {
           accuracy: "40% - How well responses match expected outputs",
-          domainExpertise: "30% - Specialized capabilities in the specific domain",
+          domainExpertise: "30% - Performance across different knowledge categories",
           latency: "10% - Response speed (lower is better)",
           cost: "20% - Cost efficiency (lower is better)"
         },
@@ -1362,16 +1321,6 @@ const generateSummary = (benchmarkResult, rankings) => {
         normalization: {
           latency: "Converted to 0-1 scale using: max(0, 1 - (avgLatency / 10000))",
           cost: "Converted to 0-1 scale using: max(0, 1 - (totalCost / 0.1))"
-        },
-        specializedCapabilities: {
-          description: "Domain expertise is now calculated based on four specialized capabilities",
-          capabilities: {
-            codeQuality: "Evaluates syntax correctness, structure, and functionality of code",
-            mathematicalAccuracy: "Measures precision in calculations and mathematical reasoning",
-            creativeQuality: "Assesses creativity, narrative structure, and stylistic elements",
-            analyticalDepth: "Evaluates depth of analysis, reasoning, and critical thinking"
-          },
-          calculation: "domainExpertise = (codeQuality + mathematicalAccuracy + creativeQuality + analyticalDepth) / 4"
         }
       },
       benchmarkStats: {
