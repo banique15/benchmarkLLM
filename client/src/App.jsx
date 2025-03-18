@@ -2,7 +2,9 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/common/Layout';
 import Dashboard from './components/Dashboard';
+import BenchmarkTypeSelector from './components/benchmark/BenchmarkTypeSelector';
 import BenchmarkCreator from './components/benchmark/BenchmarkCreator';
+import AdvancedBenchmark from './components/benchmark/AdvancedBenchmark';
 import BenchmarkRunner from './components/benchmark/BenchmarkRunner';
 import ResultsViewer from './components/results/ResultsViewer';
 import ResultDetails from './components/results/ResultDetails';
@@ -15,8 +17,9 @@ function App() {
       <Route path="/" element={<Layout />}>
         <Route index element={<Dashboard />} />
         <Route path="benchmarks">
-          <Route index element={<Navigate to="/benchmarks/create" replace />} />
-          <Route path="create" element={<BenchmarkCreator />} />
+          <Route index element={<BenchmarkTypeSelector />} />
+          <Route path="basic/create" element={<BenchmarkCreator />} />
+          <Route path="advanced/create" element={<AdvancedBenchmark />} />
           <Route path="run/:id" element={<BenchmarkRunner />} />
         </Route>
         <Route path="results">

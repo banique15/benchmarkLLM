@@ -16,7 +16,12 @@ export const evaluateResponse = async (prompt, expectedOutput, actualOutput, eva
     console.log(`Evaluating response using ${evaluatorModel}`);
     
     // Create a LangChain model instance for evaluation
-    const evaluator = getModelInstance(evaluatorModel, { temperature: 0.2 }, apiKey);
+    // Default to Claude 3 Haiku if no specific evaluator model is provided
+    const modelToUse = evaluatorModel || "anthropic/claude-3-haiku";
+    const evaluator = getModelInstance(modelToUse, {
+      temperature: 0.2,
+      max_tokens: 2000  // Set a reasonable token limit for evaluation responses
+    }, apiKey);
     
     // Create a prompt template for evaluation
     const evaluationTemplate = PromptTemplate.fromTemplate(`
@@ -113,7 +118,12 @@ export const evaluateTaskSpecific = async (taskType, prompt, expectedOutput, act
     console.log(`Performing task-specific evaluation for ${taskType}`);
     
     // Create a LangChain model instance for evaluation
-    const evaluator = getModelInstance(evaluatorModel, { temperature: 0.2 }, apiKey);
+    // Default to Claude 3 Haiku if no specific evaluator model is provided
+    const modelToUse = evaluatorModel || "anthropic/claude-3-haiku";
+    const evaluator = getModelInstance(modelToUse, {
+      temperature: 0.2,
+      max_tokens: 2000  // Set a reasonable token limit for evaluation responses
+    }, apiKey);
     
     // Define task-specific evaluation criteria
     const taskCriteria = {

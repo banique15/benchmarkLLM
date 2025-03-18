@@ -4,11 +4,13 @@ import openRouterService from '../services/openrouter.js';
 
 const router = express.Router();
 
-// Middleware to extract API key from request
+// Middleware to extract API key and credit limit from request
 const extractApiKey = (req, res, next) => {
   const apiKey = req.headers['x-api-key'];
+  const creditLimit = req.headers['x-credit-limit'];
   console.log('Headers received:', Object.keys(req.headers));
   console.log('X-API-Key header:', apiKey ? 'Present' : 'Not present');
+  console.log('X-Credit-Limit header:', creditLimit ? creditLimit : 'Not present (using default)');
   
   if (!apiKey) {
     return res.status(401).json({
@@ -17,6 +19,7 @@ const extractApiKey = (req, res, next) => {
   }
   
   req.apiKey = apiKey;
+  req.creditLimit = creditLimit;
   console.log('API Key extracted:', apiKey ? `${apiKey.substring(0, 4)}...${apiKey.substring(apiKey.length - 4)}` : 'No API key');
   
   next();
@@ -162,33 +165,52 @@ router.get('/test-api-key', extractApiKey, async (req, res, next) => {
       });
     }
     
-    // Make a direct request to the OpenRouter API to test the API key
     try {
-      // First, try to get the models list as a simple test
-      const headers = {
-        'Authorization': `Bearer ${req.apiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': process.env.CLIENT_URL || 'http://localhost:5173',
-        'X-Title': 'LLM Benchmark',
-      };
+      // Use the validateApiKey function from openRouterService
+      const validationResult = await openRouterService.validateApiKey(req.apiKey, req);
       
-      console.log('Making request to OpenRouter API with headers:', Object.keys(headers));
-      
-      const response = await axios.get('https://openrouter.ai/api/v1/models', {
-        headers,
+      console.log('API key validation result:', {
+        valid: validationResult.valid,
+        hasCredits: validationResult.hasCredits,
+        credits: validationResult.credits,
+        error: validationResult.error || 'None'
       });
       
-      console.log('API key test response:', {
-        status: response.status,
-        statusText: response.statusText,
-        data: response.data ? 'Data received' : 'No data',
-        modelCount: response.data?.data?.length || 0,
-      });
+      if (!validationResult.valid) {
+        return res.status(401).json({
+          valid: false,
+          message: validationResult.error || 'Invalid API key',
+          error: validationResult.error
+        });
+      }
+      
+      // Get the minimum recommended credits from the validation result or use default
+      const minimumRecommendedCredits = validationResult.minimumRecommendedCredits || 500;
+      
+      // Check if the API key has sufficient credits
+      // OpenRouter credits are used for each API call. Benchmarks can use a significant amount
+      // of credits depending on the number of models and test cases.
+      if (validationResult.credits !== null &&
+          validationResult.credits !== undefined &&
+          validationResult.credits < minimumRecommendedCredits) {
+        return res.status(402).json({
+          valid: true,
+          hasCredits: false,
+          credits: validationResult.credits,
+          minimumRecommendedCredits,
+          message: `Insufficient OpenRouter credits. You have ${validationResult.credits} credits available, but we recommend at least ${minimumRecommendedCredits} credits to run benchmarks. Each benchmark test consumes credits based on the models used and the length of prompts. You can add more credits at https://openrouter.ai/credits`,
+          error: 'insufficient_credits'
+        });
+      }
       
       res.json({
         valid: true,
-        message: 'API key is valid',
-        modelCount: response.data?.data?.length || 0,
+        hasCredits: true,
+        credits: validationResult.credits,
+        minimumRecommendedCredits,
+        message: validationResult.credits !== null ?
+          `API key is valid. You have ${validationResult.credits} OpenRouter credits available (recommended minimum: ${minimumRecommendedCredits}). These credits are consumed when running benchmarks, with each model call using a different amount based on the model and prompt length.` :
+          'API key is valid. OpenRouter credits are used when running benchmarks.',
       });
     } catch (error) {
       console.error('Error testing API key:', error);
@@ -235,6 +257,80 @@ router.get('/benchmark/:id/status', extractApiKey, async (req, res, next) => {
   }
 });
 
-// This function has been replaced by the benchmark service
+// Check token capacity for a specific model
+router.get('/model/:modelId/token-capacity', extractApiKey, async (req, res, next) => {
+  try {
+    const { modelId } = req.params;
+    
+    if (!modelId) {
+      return res.status(400).json({ error: 'Model ID is required' });
+    }
+    
+    console.log(`Checking token capacity for model ${modelId}`);
+    console.log('API Key received:', req.apiKey ? `${req.apiKey.substring(0, 4)}...${req.apiKey.substring(req.apiKey.length - 4)}` : 'No API key');
+    
+    if (!req.apiKey) {
+      return res.status(401).json({
+        success: false,
+        error: 'API key is required',
+        message: 'API key is required for token capacity check'
+      });
+    }
+    
+    try {
+      // Use the checkModelTokenCapacity function from openRouterService
+      const capacityResult = await openRouterService.checkModelTokenCapacity(modelId, req.apiKey, req);
+      
+      // Log the result for debugging
+      console.log('Token capacity check result:', {
+        success: capacityResult.success,
+        modelId: capacityResult.modelId,
+        availableTokenCapacity: capacityResult.availableTokenCapacity,
+        requiredCapacity: capacityResult.requiredCapacity,
+        availableCapacity: capacityResult.availableCapacity,
+        credits: capacityResult.credits,
+        error: capacityResult.error || 'None'
+      });
+      
+      if (!capacityResult.success) {
+        return res.status(200).json({
+          success: false,
+          modelId,
+          availableTokenCapacity: capacityResult.availableTokenCapacity,
+          requiredCapacity: capacityResult.requiredCapacity,
+          availableCapacity: capacityResult.availableCapacity,
+          credits: capacityResult.credits,
+          message: capacityResult.error || 'Failed to check token capacity',
+          error: capacityResult.error
+        });
+      }
+      
+      res.json({
+        success: true,
+        modelId,
+        availableTokenCapacity: true,
+        credits: capacityResult.credits,
+        usage: capacityResult.usage,
+        message: `Token capacity check successful for model ${modelId}. You have sufficient token capacity.`
+      });
+    } catch (serviceError) {
+      console.error('Service error checking token capacity:', serviceError);
+      return res.status(500).json({
+        success: false,
+        modelId,
+        message: `Error checking token capacity: ${serviceError.message}`,
+        error: serviceError.message
+      });
+    }
+  } catch (error) {
+    console.error(`Error checking token capacity for model ${req.params.modelId}:`, error);
+    res.status(500).json({
+      success: false,
+      modelId: req.params.modelId,
+      message: `Server error checking token capacity: ${error.message}`,
+      error: error.message
+    });
+  }
+});
 
 export default router;

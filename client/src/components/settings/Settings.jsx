@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import Modal from '../common/Modal';
 
 // Import the API_URL
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 const Settings = () => {
   const [apiKey, setApiKey] = useState('');
+  const [creditLimit, setCreditLimit] = useState('1000');
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [error, setError] = useState(null);
@@ -12,7 +14,33 @@ const Settings = () => {
   // State to track if the API key is masked
   const [isMasked, setIsMasked] = useState(true);
   
-  // Load API key from localStorage on component mount
+  // Modal state
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalProps, setModalProps] = useState({
+    title: '',
+    message: '',
+    type: 'info',
+    confirmText: 'OK',
+    onConfirm: null,
+    cancelText: null,
+    onCancel: null
+  });
+  
+  // Helper function to show a modal
+  const showModal = (props) => {
+    setModalProps({
+      title: props.title || 'Message',
+      message: props.message || '',
+      type: props.type || 'info',
+      confirmText: props.confirmText || 'OK',
+      onConfirm: props.onConfirm || (() => setModalOpen(false)),
+      cancelText: props.cancelText,
+      onCancel: props.onCancel
+    });
+    setModalOpen(true);
+  };
+  
+  // Load API key and credit limit from localStorage on component mount
   useEffect(() => {
     const storedApiKey = localStorage.getItem('openrouter_api_key');
     if (storedApiKey) {
@@ -21,6 +49,11 @@ const Settings = () => {
         storedApiKey.length - 4
       )}`;
       setApiKey(isMasked ? maskedKey : storedApiKey);
+    }
+    
+    const storedCreditLimit = localStorage.getItem('openrouter_credit_limit');
+    if (storedCreditLimit) {
+      setCreditLimit(storedCreditLimit);
     }
   }, [isMasked]);
 
@@ -33,8 +66,35 @@ const Settings = () => {
     try {
       // Validate that the API key is not masked
       if (apiKey.includes('...') && isMasked) {
-        setError('Please unmask the API key before saving or enter a new API key.');
+        const errorMessage = 'Please unmask the API key before saving or enter a new API key.';
+        setError(errorMessage);
         setIsSaving(false);
+        
+        // Show error in a modal
+        showModal({
+          title: 'Masked API Key',
+          message: errorMessage,
+          type: 'warning',
+          confirmText: 'OK'
+        });
+        
+        return;
+      }
+      
+      // Validate that the credit limit is provided and is a valid number
+      if (!creditLimit || isNaN(parseInt(creditLimit, 10)) || parseInt(creditLimit, 10) <= 0) {
+        const errorMessage = 'Please enter a valid credit limit (a positive number).';
+        setError(errorMessage);
+        setIsSaving(false);
+        
+        // Show error in a modal
+        showModal({
+          title: 'Invalid Credit Limit',
+          message: errorMessage,
+          type: 'warning',
+          confirmText: 'OK'
+        });
+        
         return;
       }
 
@@ -42,23 +102,69 @@ const Settings = () => {
       try {
         const response = await fetch(`${API_URL}/api/openrouter/test-api-key`, {
           headers: {
-            'X-API-Key': apiKey
+            'X-API-Key': apiKey,
+            'X-Credit-Limit': creditLimit
           }
         });
         
         const result = await response.json();
+        console.log('API key test result:', result);
         
-        if (!response.ok || !result.valid) {
+        if (!response.ok) {
           throw new Error(result.message || 'Invalid API key');
         }
         
-        console.log('API key test result:', result);
+        if (!result.valid) {
+          throw new Error(result.message || 'Invalid API key');
+        }
         
-        // API key is valid, save it to localStorage
+        // Check if the API key has sufficient credits
+        if (result.valid && !result.hasCredits) {
+          // We'll show a warning but still allow saving the key
+          setError(`Warning: ${result.message || 'Insufficient credits to run benchmarks. You may need to add more credits before running benchmarks.'}`);
+          
+          // Ask the user if they want to save the key anyway using our modal
+          setIsSaving(false);
+          showModal({
+            title: 'Insufficient Credits',
+            message: `Your API key is valid but has insufficient credits.\n\n${result.message || 'You may need to add more credits before running benchmarks.'}\n\nDo you still want to save this API key?`,
+            type: 'warning',
+            confirmText: 'Save Anyway',
+            onConfirm: () => {
+              // Save the API key and credit limit if confirmed
+              localStorage.setItem('openrouter_api_key', apiKey);
+              localStorage.setItem('openrouter_credit_limit', creditLimit);
+              setModalOpen(false);
+              setSaveSuccess(true);
+              
+              // Reset success message after 3 seconds
+              setTimeout(() => {
+                setSaveSuccess(false);
+              }, 3000);
+            },
+            cancelText: 'Cancel',
+            onCancel: () => {
+              setModalOpen(false);
+            }
+          });
+          
+          return; // Exit early, the save will happen in the modal's onConfirm if user confirms
+        }
+        
+        // API key is valid and has sufficient credits, save it to localStorage
         localStorage.setItem('openrouter_api_key', apiKey);
+        localStorage.setItem('openrouter_credit_limit', creditLimit);
         
         setIsSaving(false);
         setSaveSuccess(true);
+        
+        // Show success modal
+        showModal({
+          title: 'API Key Saved',
+          message: 'Your API key has been saved successfully.',
+          type: 'success',
+          confirmText: 'OK'
+        });
         
         // Reset success message after 3 seconds
         setTimeout(() => {
@@ -67,19 +173,63 @@ const Settings = () => {
       } catch (apiError) {
         console.error('API key test error:', apiError);
         setIsSaving(false);
-        setError('Invalid API key. Please check your OpenRouter API key and try again.');
+        const errorMessage = apiError.message || 'Invalid API key. Please check your OpenRouter API key and try again.';
+        setError(errorMessage);
+        
+        // Show error in a modal
+        showModal({
+          title: 'API Key Error',
+          message: errorMessage,
+          type: 'error',
+          confirmText: 'OK'
+        });
       }
     } catch (err) {
       console.error('Save API key error:', err);
       setIsSaving(false);
-      setError('Failed to save API key. Please try again.');
+      const errorMessage = 'Failed to save API key. Please try again.';
+      setError(errorMessage);
+      
+      // Show error in a modal
+      showModal({
+        title: 'Save Error',
+        message: errorMessage,
+        type: 'error',
+        confirmText: 'OK'
+      });
     }
   };
   
   // Test the API key directly
   const handleTestApiKey = async () => {
     if (apiKey.includes('...') && isMasked) {
-      setError('Please unmask the API key before testing.');
+      const errorMessage = 'Please unmask the API key before testing.';
+      setError(errorMessage);
+      
+      // Show error in a modal
+      showModal({
+        title: 'Masked API Key',
+        message: errorMessage,
+        type: 'warning',
+        confirmText: 'OK'
+      });
+      
+      return;
+    }
+    
+    // Validate that the credit limit is provided and is a valid number
+    if (!creditLimit || isNaN(parseInt(creditLimit, 10)) || parseInt(creditLimit, 10) <= 0) {
+      const errorMessage = 'Please enter a valid credit limit (a positive number).';
+      setError(errorMessage);
+      
+      // Show error in a modal
+      showModal({
+        title: 'Invalid Credit Limit',
+        message: errorMessage,
+        type: 'warning',
+        confirmText: 'OK'
+      });
+      
       return;
     }
     
@@ -90,7 +240,8 @@ const Settings = () => {
     try {
       const response = await fetch(`${API_URL}/api/openrouter/test-api-key`, {
         headers: {
-          'X-API-Key': apiKey
+          'X-API-Key': apiKey,
+          'X-Credit-Limit': creditLimit
         }
       });
       
@@ -100,28 +251,99 @@ const Settings = () => {
       if (response.ok && result.valid) {
         setError(null);
         setSaveSuccess(true);
-        alert('API key is valid! ' + (result.message || ''));
+        
+        if (result.hasCredits === false) {
+          // API key is valid but doesn't have enough credits
+          showModal({
+            title: 'API Key Valid - Insufficient Credits',
+            message: `Your API key is valid but has insufficient credits.\n\n${result.message || ''}`,
+            type: 'warning',
+            confirmText: 'OK'
+          });
+          
+          // Show a warning in the UI
+          setError(`Warning: Valid API key but insufficient credits. You may need to add more credits before running benchmarks.`);
+          setSaveSuccess(false);
+        } else {
+          // API key is valid and has sufficient credits
+          showModal({
+            title: 'API Key Valid',
+            message: `Your API key is valid and has sufficient credits!\n\n${result.message || ''}`,
+            type: 'success',
+            confirmText: 'OK'
+          });
+        }
       } else {
-        setError('Invalid API key: ' + (result.message || 'Unknown error'));
+        const errorMessage = 'Invalid API key: ' + (result.message || 'Unknown error');
+        setError(errorMessage);
+        
+        // Show error in a modal
+        showModal({
+          title: 'API Key Error',
+          message: errorMessage,
+          type: 'error',
+          confirmText: 'OK'
+        });
       }
     } catch (err) {
       console.error('Test API key error:', err);
-      setError('Failed to test API key: ' + err.message);
+      const errorMessage = 'Failed to test API key: ' + err.message;
+      setError(errorMessage);
+      
+      // Show error in a modal
+      showModal({
+        title: 'API Key Test Failed',
+        message: errorMessage,
+        type: 'error',
+        confirmText: 'OK'
+      });
     } finally {
       setIsSaving(false);
     }
   };
 
+  // Function to check token capacity removed
+
   const handleClearApiKey = () => {
-    localStorage.removeItem('openrouter_api_key');
-    setApiKey('');
-    setSaveSuccess(false);
-    setIsMasked(true);
+    // Show confirmation modal
+    showModal({
+      title: 'Clear API Key',
+      message: 'Are you sure you want to clear your API key? This action cannot be undone.',
+      type: 'warning',
+      confirmText: 'Clear Key',
+      onConfirm: () => {
+        localStorage.removeItem('openrouter_api_key');
+        localStorage.removeItem('openrouter_credit_limit');
+        setApiKey('');
+        setCreditLimit('1000'); // Reset to default
+        setSaveSuccess(false);
+        setIsMasked(true);
+        setModalOpen(false);
+      },
+      cancelText: 'Cancel',
+      onCancel: () => {
+        setModalOpen(false);
+      }
+    });
   };
 
   return (
     <div className="animate-fadeIn">
       <h1 className="text-3xl font-bold text-dark-600 mb-8">Settings</h1>
+      
+      {/* Modal for alerts and confirmations */}
+      <Modal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={modalProps.title}
+        type={modalProps.type}
+        confirmText={modalProps.confirmText}
+        onConfirm={modalProps.onConfirm}
+        cancelText={modalProps.cancelText}
+        onCancel={modalProps.onCancel}
+      >
+        {modalProps.message}
+      </Modal>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
         {/* API Configuration Card */}
@@ -147,38 +369,65 @@ const Settings = () => {
               <div className="grid grid-cols-1 gap-6">
                 {/* Left column - API Key Input */}
                 <div>
-                  <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 shadow-sm">
-                    <label htmlFor="apiKey" className="block font-medium text-dark-600 mb-2">
-                      OpenRouter API Key
-                    </label>
-                    <div className="flex">
-                      <input
-                        id="apiKey"
-                        type={isMasked ? "text" : "text"}
-                        className="input flex-grow"
-                        value={apiKey}
-                        onChange={(e) => {
-                          setApiKey(e.target.value);
-                          // If user is typing, we're no longer showing the masked version
-                          if (isMasked) setIsMasked(false);
-                        }}
-                        placeholder="Enter your OpenRouter API key"
-                        required
-                      />
-                      <button
-                        type="button"
-                        className="ml-2 px-4 py-2 bg-white text-dark-500 rounded-md hover:bg-gray-100 transition-colors border border-gray-200"
-                        onClick={() => setIsMasked(!isMasked)}
-                      >
-                        {isMasked ? "Show" : "Hide"}
-                      </button>
+                  <div className="space-y-4">
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 shadow-sm">
+                      <label htmlFor="apiKey" className="block font-medium text-dark-600 mb-2">
+                        OpenRouter API Key
+                      </label>
+                      <div className="flex">
+                        <input
+                          id="apiKey"
+                          type={isMasked ? "text" : "text"}
+                          className="input flex-grow"
+                          value={apiKey}
+                          onChange={(e) => {
+                            setApiKey(e.target.value);
+                            // If user is typing, we're no longer showing the masked version
+                            if (isMasked) setIsMasked(false);
+                          }}
+                          placeholder="Enter your OpenRouter API key"
+                          required
+                        />
+                        <button
+                          type="button"
+                          className="ml-2 px-4 py-2 bg-white text-dark-500 rounded-md hover:bg-gray-100 transition-colors border border-gray-200"
+                          onClick={() => setIsMasked(!isMasked)}
+                        >
+                          {isMasked ? "Show" : "Hide"}
+                        </button>
+                      </div>
+                      <p className="mt-2 text-sm text-gray-500 flex items-center">
+                        <svg className="w-4 h-4 mr-1 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Your API key is stored locally in your browser and is never sent to our servers.
+                      </p>
                     </div>
-                    <p className="mt-2 text-sm text-gray-500 flex items-center">
-                      <svg className="w-4 h-4 mr-1 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      Your API key is stored locally in your browser and is never sent to our servers.
-                    </p>
+                    
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 shadow-sm">
+                      <label htmlFor="creditLimit" className="block font-medium text-dark-600 mb-2">
+                        Manual Credit Limit <span className="text-red-500">*</span>
+                      </label>
+                      <div className="flex">
+                        <input
+                          id="creditLimit"
+                          type="number"
+                          min="1"
+                          step="1"
+                          className="input flex-grow"
+                          value={creditLimit}
+                          onChange={(e) => setCreditLimit(e.target.value)}
+                          placeholder="Enter your credit limit"
+                          required
+                        />
+                      </div>
+                      <p className="mt-2 text-sm text-gray-500 flex items-center">
+                        <svg className="w-4 h-4 mr-1 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Required: Set a manual credit limit for calculating available credits. This value will be used instead of the default 1000.
+                      </p>
+                    </div>
                   </div>
                   
                   {/* Status Messages */}

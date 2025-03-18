@@ -251,9 +251,310 @@ export const runModelTest = async (model, prompt, options = {}, apiKey) => {
   }
 };
 
+// Validate API key and check credits
+export const validateApiKey = async (apiKey, req = null) => {
+  try {
+    console.log('Validating API key:', apiKey ? `${apiKey.substring(0, 4)}...${apiKey.substring(apiKey.length - 4)}` : 'No API key provided');
+    
+    if (!apiKey) {
+      return {
+        valid: false,
+        error: 'API key is required'
+      };
+    }
+    
+    // Create headers for the request
+    const headers = {
+      'Content-Type': 'application/json',
+      'HTTP-Referer': process.env.CLIENT_URL || 'http://localhost:5173',
+      'X-Title': 'LLM Benchmark',
+      'Authorization': `Bearer ${apiKey}`
+    };
+    
+    // Make a request to the OpenRouter API to check the key
+    const response = await axios.get('https://openrouter.ai/api/v1/auth/key', {
+      headers
+    });
+    
+    console.log('API key validation response:', {
+      status: response.status,
+      statusText: response.statusText
+    });
+    
+    // Log the full response for debugging
+    console.log('API key validation response data:', JSON.stringify(response.data, null, 2));
+    
+    // Extract credit information from the response using a more robust approach
+    let credits = null;
+    let limit = null;
+    let defaultCreditLimit = 1000; // Default credit limit if not provided by API
+    
+    // Enhanced logging for response structure analysis
+    console.log('Response structure check:', {
+      hasCreditsField: response.data.credits !== undefined,
+      hasDataField: response.data.data !== undefined,
+      hasUsageField: response.data.data?.usage !== undefined,
+      hasLimitField: response.data.limit !== undefined || response.data.data?.limit !== undefined,
+      responseKeys: Object.keys(response.data),
+      dataKeys: response.data.data ? Object.keys(response.data.data) : 'No data field'
+    });
+    
+    // Try to extract credit information from different possible formats
+    // First priority: direct credits field
+    if (response.data.credits !== undefined) {
+      console.log('Using direct credits field:', response.data.credits);
+      credits = response.data.credits;
+    }
+    // Second priority: extract from usage with dynamic limit
+    else if (response.data.data?.usage !== undefined) {
+      // Check if there's a manually set credit limit in the request
+      const manualCreditLimit = req?.creditLimit;
+      
+      // Always prioritize the manual credit limit if provided
+      // Only fall back to API response or default if not provided
+      const creditLimit = manualCreditLimit ?
+                         parseInt(manualCreditLimit, 10) :
+                         response.data.data?.limit ||
+                         response.data.limit ||
+                         defaultCreditLimit;
+                         
+      console.log('Using credit limit:', manualCreditLimit ?
+                 `${manualCreditLimit} (manually set)` :
+                 `${creditLimit} (from API or default)`);
+      
+      // Calculate available credits based on usage value and limit
+      const usageValue = response.data.data.usage;
+      
+      // The correct calculation is simply: creditLimit - usageValue
+      // This treats usage as an absolute value, not a percentage
+      credits = creditLimit - usageValue;
+      
+      console.log('Calculated credits from usage:', {
+        usageValue,
+        creditLimit,
+        calculatedCredits: credits,
+        calculation: `${creditLimit} - ${usageValue} = ${credits}`
+      });
+    }
+    // Third priority: try to find credits in nested objects
+    else if (response.data.data) {
+      // Look for any field that might contain credit information
+      const possibleCreditFields = ['credits', 'credit', 'balance', 'available'];
+      for (const field of possibleCreditFields) {
+        if (response.data.data[field] !== undefined) {
+          console.log(`Found credits in data.${field}:`, response.data.data[field]);
+          credits = response.data.data[field];
+          break;
+        }
+      }
+    }
+    
+    // Extract limit information
+    if (response.data.limit !== undefined) {
+      limit = response.data.limit;
+    } else if (response.data.data?.limit !== undefined) {
+      limit = response.data.data.limit;
+    } else {
+      // If no limit is provided, use the default
+      limit = defaultCreditLimit;
+      console.log(`No limit found in response, using default: ${defaultCreditLimit}`);
+    }
+    
+    // Minimum recommended credits for benchmarks
+    const minimumRecommendedCredits = 500;
+    
+    // Check if we have enough credits for a typical request
+    // If we can't determine credits, we need to make a test call to check
+    const hasCredits = credits === null ? true : credits >= minimumRecommendedCredits;
+    
+    console.log('Credit check results:', {
+      credits,
+      limit,
+      hasCredits,
+      creditInfoProvided: credits !== null,
+      minimumRecommendedCredits,
+      usage: response.data.data?.usage
+    });
+    
+    return {
+      valid: true,
+      credits,
+      limit,
+      hasCredits,
+      minimumRecommendedCredits,
+      data: response.data
+    };
+  } catch (error) {
+    console.error('Error validating API key:', error.response?.data || error.message);
+    console.error('Error details:', {
+      status: error.response?.status,
+      statusText: error.response?.statusText
+    });
+    
+    // Determine the specific error
+    let errorMessage = 'API key validation failed';
+    
+    if (error.response) {
+      if (error.response.status === 401 || error.response.status === 403) {
+        errorMessage = 'Invalid API key';
+      } else if (error.response.data?.error) {
+        errorMessage = error.response.data.error;
+      }
+    }
+    
+    return {
+      valid: false,
+      error: errorMessage,
+      details: error.response?.data || error.message
+    };
+  }
+};
+
+/**
+ * Get available models from OpenRouter (alias for getAvailableModels)
+ * @param {string} apiKey - OpenRouter API key
+ * @returns {Promise<Array>} - List of available models
+ */
+export const getOpenRouterModels = async (apiKey = process.env.OPENROUTER_API_KEY) => {
+  return getAvailableModels(apiKey);
+};
+
+/**
+ * Check token capacity for a specific model
+ * @param {string} modelId - The model ID to check
+ * @param {string} apiKey - OpenRouter API key
+ * @param {Object} req - Request object containing creditLimit
+ * @returns {Promise<Object>} - Token capacity information
+ */
+export const checkModelTokenCapacity = async (modelId, apiKey = process.env.OPENROUTER_API_KEY, req = null) => {
+  try {
+    console.log(`Checking token capacity for model ${modelId}`);
+    
+    if (!apiKey) {
+      console.error('No API key provided for token capacity check');
+      return {
+        success: false,
+        error: 'API key is required'
+      };
+    }
+    
+    // Create headers for the request
+    const headers = {
+      'Content-Type': 'application/json',
+      'HTTP-Referer': process.env.CLIENT_URL || 'http://localhost:5173',
+      'X-Title': 'LLM Benchmark',
+      'Authorization': `Bearer ${apiKey}`
+    };
+    
+    console.log('Headers for token capacity check:', Object.keys(headers));
+    
+    // First, validate the API key to get general credit information
+    console.log('Validating API key before token capacity check');
+    // Create a mock request object with the apiKey
+    const mockReq = {
+      apiKey: apiKey,
+      creditLimit: null // We don't have access to the request headers here
+    };
+    const keyValidation = await validateApiKey(apiKey, mockReq);
+    console.log('API key validation result:', {
+      valid: keyValidation.valid,
+      credits: keyValidation.credits,
+      error: keyValidation.error || 'None'
+    });
+    
+    if (!keyValidation.valid) {
+      return {
+        success: false,
+        error: keyValidation.error || 'Invalid API key'
+      };
+    }
+    
+    // Make a test request to the model to check token capacity
+    // We'll use a more realistic prompt that matches the actual benchmark usage
+    const testPrompt = "Generate 3 test cases for a benchmark on the topic of artificial intelligence. Each test case should include a prompt, expected output, and category.";
+    
+    try {
+      console.log(`Making test request to model ${modelId}`);
+      
+      // Make a request to the chat completions endpoint
+      const response = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
+        model: modelId,
+        messages: [{ role: 'user', content: testPrompt }],
+        temperature: 0.7,
+        max_tokens: 2048 // Match the token limit used in the benchmark
+      }, {
+        headers
+      });
+      
+      console.log('Test request successful:', {
+        status: response.status,
+        usage: response.data.usage
+      });
+      
+      // If we get here, the request was successful
+      return {
+        success: true,
+        modelId,
+        availableTokenCapacity: true,
+        credits: keyValidation.credits,
+        usage: response.data.usage
+      };
+    } catch (modelError) {
+      console.error('Error in test request:', modelError.message);
+      console.error('Error response:', modelError.response?.data);
+      
+      // Check if this is a token capacity error
+      if (modelError.response?.data?.error?.message?.includes('token capacity required')) {
+        // Extract the required and available token capacity from the error message
+        const errorMsg = modelError.response.data.error.message;
+        console.log('Token capacity error message:', errorMsg);
+        
+        const requiredMatch = errorMsg.match(/(\d+) token capacity required/);
+        const availableMatch = errorMsg.match(/(\d+) available/);
+        
+        const requiredCapacity = requiredMatch ? parseInt(requiredMatch[1]) : null;
+        const availableCapacity = availableMatch ? parseInt(availableMatch[1]) : null;
+        
+        console.log('Extracted capacity information:', {
+          requiredCapacity,
+          availableCapacity
+        });
+        
+        return {
+          success: false,
+          modelId,
+          availableTokenCapacity: false,
+          requiredCapacity,
+          availableCapacity,
+          credits: keyValidation.credits,
+          error: errorMsg
+        };
+      }
+      
+      // For other errors, return the error message
+      return {
+        success: false,
+        modelId,
+        error: modelError.response?.data?.error?.message || modelError.message
+      };
+    }
+  } catch (error) {
+    console.error(`Error checking token capacity for model ${modelId}:`, error.message);
+    console.error('Stack trace:', error.stack);
+    return {
+      success: false,
+      modelId,
+      error: error.message
+    };
+  }
+};
+
 export default {
   getAvailableModels,
+  getOpenRouterModels,
   generateCompletion,
   generateChatCompletion,
   runModelTest,
+  validateApiKey,
+  checkModelTokenCapacity
 };

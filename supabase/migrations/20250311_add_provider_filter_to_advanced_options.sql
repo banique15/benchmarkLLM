@@ -1,0 +1,2 @@
+-- Add comment for selectedProviders field in advanced_options
+COMMENT ON COLUMN benchmark_configs.advanced_options IS 'Additional options for advanced benchmarks including selectedProviders for filtering models by provider';

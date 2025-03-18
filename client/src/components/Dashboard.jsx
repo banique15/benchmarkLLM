@@ -118,7 +118,7 @@ const Dashboard = () => {
     <div className="animate-fadeIn">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold text-dark-600">Dashboard</h1>
-        <Link to="/benchmarks/create" className="btn btn-primary">
+        <Link to="/benchmarks" className="btn btn-primary">
           <span className="flex items-center">
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -216,7 +216,7 @@ const Dashboard = () => {
             <h3 className="mt-2 text-lg font-medium text-dark-600">No benchmarks yet</h3>
             <p className="mt-1 text-gray-500">Get started by creating your first benchmark.</p>
             <div className="mt-6">
-              <Link to="/benchmarks/create" className="btn btn-primary">
+              <Link to="/benchmarks" className="btn btn-primary">
                 <span className="flex items-center justify-center">
                   <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -299,7 +299,7 @@ const Dashboard = () => {
         <h2 className="text-2xl font-semibold text-dark-600 mb-4">Quick Actions</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Link
-            to="/benchmarks/create"
+            to="/benchmarks"
             className="card hover:bg-gray-50 flex items-center group"
           >
             <div className="mr-5 p-3 rounded-full bg-primary-100 text-primary-600 group-hover:bg-primary-200 transition-colors">

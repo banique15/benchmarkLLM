@@ -9,6 +9,7 @@ import { rateLimit } from 'express-rate-limit';
 import openRouterRoutes from './routes/openrouter.js';
 import langchainRoutes from './routes/langchain.js';
 import benchmarkRoutes from './routes/benchmark.js';
+import advancedBenchmarkRoutes from './routes/advanced-benchmark.js';
 import configRoutes from './routes/config.js';
 import resultRoutes from './routes/result.js';
 import evaluationRoutes from './routes/evaluation.js';
@@ -46,7 +47,7 @@ const corsOptions = {
     }
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Credit-Limit'],
   credentials: true // Allow cookies if needed
 };
 
@@ -68,6 +69,7 @@ app.use('/api', apiLimiter);
 app.use('/api/openrouter', openRouterRoutes);
 app.use('/api/langchain', langchainRoutes);
 app.use('/api/benchmarks', benchmarkRoutes);
+app.use('/api/advanced-benchmark', advancedBenchmarkRoutes);
 app.use('/api/configs', configRoutes);
 app.use('/api/results', resultRoutes);
 app.use('/api/evaluation', evaluationRoutes);
