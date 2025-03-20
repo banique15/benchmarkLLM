@@ -13,7 +13,7 @@ const ollamaClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 60000, // 60 second timeout for long-running requests
+  timeout: 300000, // 5 minute timeout for long-running requests
 });
 
 /**
