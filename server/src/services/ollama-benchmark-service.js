@@ -166,7 +166,7 @@ export const runOllamaBenchmark = async (benchmarkResultId) => {
           const result = await runOllamaPrompt(model.id, testCase.prompt, benchmarkConfig.parameters);
           
           // Evaluate the response
-          const accuracyScore = evaluateResponse(result.output, testCase.expectedOutput, testCase.difficulty);
+          const evaluation = evaluateResponse(result.output, testCase.expectedOutput, testCase.difficulty);
           
           // Save test case result
           const testCaseResult = {
@@ -180,7 +180,8 @@ export const runOllamaBenchmark = async (benchmarkResultId) => {
             output: result.output,
             latency: result.latency,
             token_count: result.token_count,
-            accuracy_score: accuracyScore,
+            accuracy_score: evaluation.overallScore,
+            category_scores: evaluation.categoryScores,
             created_at: new Date().toISOString()
           };
           
@@ -339,6 +340,22 @@ const generateModelRankings = async (benchmarkResultId) => {
       const avgLatency = modelResults.reduce((sum, result) => sum + (result.latency || 0), 0) / modelResults.length;
       const totalTokens = modelResults.reduce((sum, result) => sum + (result.token_count || 0), 0);
       
+      // Calculate category-specific metrics
+      const avgAccuracyCategoryScore = modelResults.reduce((sum, result) => {
+        const categoryScores = result.category_scores || {};
+        return sum + (categoryScores.accuracy || 0);
+      }, 0) / modelResults.length;
+      
+      const avgCorrectnessCategoryScore = modelResults.reduce((sum, result) => {
+        const categoryScores = result.category_scores || {};
+        return sum + (categoryScores.correctness || 0);
+      }, 0) / modelResults.length;
+      
+      const avgEfficiencyCategoryScore = modelResults.reduce((sum, result) => {
+        const categoryScores = result.category_scores || {};
+        return sum + (categoryScores.efficiency || 0);
+      }, 0) / modelResults.length;
+      
       // Calculate metrics by difficulty
       const difficultyMetrics = {};
       const difficulties = [...new Set(modelResults.map(result => result.difficulty))];
@@ -366,7 +383,12 @@ const generateModelRankings = async (benchmarkResultId) => {
         latencyScore,
         totalTokens,
         overallScore,
-        difficultyMetrics
+        difficultyMetrics,
+        categoryScores: {
+          accuracy: avgAccuracyCategoryScore,
+          correctness: avgCorrectnessCategoryScore,
+          efficiency: avgEfficiencyCategoryScore
+        }
       };
     });
     
@@ -376,6 +398,31 @@ const generateModelRankings = async (benchmarkResultId) => {
     // Assign overall ranks
     modelMetrics.forEach((metric, index) => {
       metric.overallRank = index + 1;
+    });
+    
+    // Sort and rank by category
+    // Accuracy category
+    const modelsByAccuracy = [...modelMetrics].sort((a, b) =>
+      b.categoryScores.accuracy - a.categoryScores.accuracy
+    );
+    modelsByAccuracy.forEach((metric, index) => {
+      metric.accuracyRank = index + 1;
+    });
+    
+    // Correctness category
+    const modelsByCorrectness = [...modelMetrics].sort((a, b) =>
+      b.categoryScores.correctness - a.categoryScores.correctness
+    );
+    modelsByCorrectness.forEach((metric, index) => {
+      metric.correctnessRank = index + 1;
+    });
+    
+    // Efficiency category
+    const modelsByEfficiency = [...modelMetrics].sort((a, b) =>
+      b.categoryScores.efficiency - a.categoryScores.efficiency
+    );
+    modelsByEfficiency.forEach((metric, index) => {
+      metric.efficiencyRank = index + 1;
     });
     
     // Sort and rank by difficulty
@@ -408,7 +455,13 @@ const generateModelRankings = async (benchmarkResultId) => {
       intermediate_rank: metric.difficultyMetrics.intermediate?.rank || null,
       advanced_rank: metric.difficultyMetrics.advanced?.rank || null,
       expert_rank: metric.difficultyMetrics.expert?.rank || null,
+      accuracy_rank: metric.accuracyRank,
+      correctness_rank: metric.correctnessRank,
+      efficiency_rank: metric.efficiencyRank,
       accuracy_score: metric.avgAccuracy,
+      accuracy_category_score: metric.categoryScores.accuracy,
+      correctness_category_score: metric.categoryScores.correctness,
+      efficiency_category_score: metric.categoryScores.efficiency,
       latency_score: metric.latencyScore,
       overall_score: metric.overallScore,
       created_at: new Date().toISOString()

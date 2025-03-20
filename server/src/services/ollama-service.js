@@ -148,7 +148,7 @@ const formatSize = (bytes) => {
  * @param {string} output - The model's response
  * @param {string} expectedOutput - The expected output (if available)
  * @param {string} difficulty - The difficulty level
- * @returns {number} Score between 0 and 1
+ * @returns {Object} Scores for overall and each category
  */
 export const evaluateResponse = (output, expectedOutput, difficulty) => {
   // This is a placeholder for a more sophisticated evaluation
@@ -156,61 +156,138 @@ export const evaluateResponse = (output, expectedOutput, difficulty) => {
   
   // Check if the output is empty
   if (!output || output.trim() === '') {
-    return 0;
+    return {
+      overallScore: 0,
+      categoryScores: {
+        accuracy: 0,
+        correctness: 0,
+        efficiency: 0
+      }
+    };
   }
   
   // Basic checks for React code
   const hasReactImport = output.includes('import React') || output.includes('from "react"') || output.includes("from 'react'");
-  const hasComponentDefinition = output.includes('function') && output.includes('return') && 
+  const hasComponentDefinition = output.includes('function') && output.includes('return') &&
                                (output.includes('(') && output.includes(')') && output.includes('{') && output.includes('}'));
   const hasJSX = output.includes('<') && output.includes('>') && output.includes('</');
   
-  // Additional checks based on difficulty
-  let score = 0;
+  // Initialize category scores
+  let accuracyScore = 0;
+  let correctnessScore = 0;
+  let efficiencyScore = 0;
   
+  // Evaluate Code Accuracy - How well the code fulfills the requirements
   // Base score for having React code
-  if (hasReactImport) score += 0.1;
-  if (hasComponentDefinition) score += 0.2;
-  if (hasJSX) score += 0.2;
+  if (hasReactImport) accuracyScore += 0.1;
+  if (hasComponentDefinition) accuracyScore += 0.2;
+  if (hasJSX) accuracyScore += 0.2;
   
-  // Difficulty-specific checks
+  // Difficulty-specific checks for accuracy
   switch (difficulty) {
     case 'basic':
       // For basic, just having a component that compiles is good
       if (hasReactImport && hasComponentDefinition && hasJSX) {
-        score += 0.3;
+        accuracyScore += 0.3;
       }
       break;
       
     case 'intermediate':
       // Check for hooks
-      if (output.includes('useState')) score += 0.1;
-      if (output.includes('useEffect')) score += 0.1;
-      if (output.includes('onChange') || output.includes('onClick')) score += 0.1;
+      if (output.includes('useState')) accuracyScore += 0.1;
+      if (output.includes('useEffect')) accuracyScore += 0.1;
+      if (output.includes('onChange') || output.includes('onClick')) accuracyScore += 0.1;
       break;
       
     case 'advanced':
       // Check for advanced hooks and patterns
-      if (output.includes('useContext')) score += 0.05;
-      if (output.includes('useReducer')) score += 0.05;
-      if (output.includes('useMemo')) score += 0.05;
-      if (output.includes('useCallback')) score += 0.05;
-      if (output.includes('createContext')) score += 0.05;
-      if (output.includes('Provider')) score += 0.05;
+      if (output.includes('useContext')) accuracyScore += 0.05;
+      if (output.includes('useReducer')) accuracyScore += 0.05;
+      if (output.includes('useMemo')) accuracyScore += 0.05;
+      if (output.includes('useCallback')) accuracyScore += 0.05;
+      if (output.includes('createContext')) accuracyScore += 0.05;
+      if (output.includes('Provider')) accuracyScore += 0.05;
       break;
       
     case 'expert':
       // Check for expert patterns
-      if (output.includes('custom hook') || output.includes('function use')) score += 0.05;
-      if (output.includes('React.memo') || output.includes('memo(')) score += 0.05;
-      if (output.includes('forwardRef')) score += 0.05;
-      if (output.includes('useImperativeHandle')) score += 0.05;
-      if (output.includes('createPortal')) score += 0.05;
+      if (output.includes('custom hook') || output.includes('function use')) accuracyScore += 0.05;
+      if (output.includes('React.memo') || output.includes('memo(')) accuracyScore += 0.05;
+      if (output.includes('forwardRef')) accuracyScore += 0.05;
+      if (output.includes('useImperativeHandle')) accuracyScore += 0.05;
+      if (output.includes('createPortal')) accuracyScore += 0.05;
       break;
   }
   
-  // Cap the score at 1
-  return Math.min(1, score);
+  // Evaluate Code Correctness - Is the code free of bugs and errors
+  // Check for syntax errors
+  const hasSyntaxErrors = output.includes('undefined variable') ||
+                         output.includes('is not defined') ||
+                         output.includes('unexpected token');
+  
+  // Check for proper component structure
+  const hasProperComponentStructure = output.includes('export default') ||
+                                     output.includes('export function') ||
+                                     output.includes('export const');
+  
+  // Check for proper JSX syntax
+  const hasProperJSX = !output.includes('</div') && !output.includes('<div>') &&
+                      !output.includes('<<') && !output.includes('>>');
+  
+  // Check for proper hook usage
+  const hasProperHookUsage = !output.includes('if (') ||
+                            !(output.includes('if (') && output.includes('useState('));
+  
+  // Calculate correctness score
+  if (!hasSyntaxErrors) correctnessScore += 0.3;
+  if (hasProperComponentStructure) correctnessScore += 0.3;
+  if (hasProperJSX) correctnessScore += 0.2;
+  if (hasProperHookUsage) correctnessScore += 0.2;
+  
+  // Evaluate Code Efficiency - How optimized is the code
+  // Check for unnecessary re-renders
+  const hasUnnecessaryRenders = output.includes('useState') &&
+                               !output.includes('useCallback') &&
+                               output.includes('map(') &&
+                               output.includes('onClick');
+  
+  // Check for proper dependency arrays
+  const hasProperDependencyArrays = output.includes('useEffect') &&
+                                   output.includes('useEffect(') &&
+                                   output.includes('[]');
+  
+  // Check for memoization
+  const hasMemoization = output.includes('useMemo') ||
+                        output.includes('useCallback') ||
+                        output.includes('memo(');
+  
+  // Check for proper state management
+  const hasProperStateManagement = output.includes('useState') &&
+                                  !output.includes('this.state') &&
+                                  output.includes('set');
+  
+  // Calculate efficiency score
+  if (!hasUnnecessaryRenders) efficiencyScore += 0.25;
+  if (hasProperDependencyArrays) efficiencyScore += 0.25;
+  if (hasMemoization) efficiencyScore += 0.25;
+  if (hasProperStateManagement) efficiencyScore += 0.25;
+  
+  // Cap scores at 1
+  accuracyScore = Math.min(1, accuracyScore);
+  correctnessScore = Math.min(1, correctnessScore);
+  efficiencyScore = Math.min(1, efficiencyScore);
+  
+  // Calculate overall score (weighted average)
+  const overallScore = (accuracyScore * 0.4) + (correctnessScore * 0.4) + (efficiencyScore * 0.2);
+  
+  return {
+    overallScore,
+    categoryScores: {
+      accuracy: accuracyScore,
+      correctness: correctnessScore,
+      efficiency: efficiencyScore
+    }
+  };
 };
 
 export default {
