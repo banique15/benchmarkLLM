@@ -13,6 +13,7 @@ import advancedBenchmarkRoutes from './routes/advanced-benchmark.js';
 import configRoutes from './routes/config.js';
 import resultRoutes from './routes/result.js';
 import evaluationRoutes from './routes/evaluation.js';
+import ollamaRoutes from './routes/ollama.js';
 
 // Load environment variables
 dotenv.config();
@@ -73,6 +74,7 @@ app.use('/api/advanced-benchmark', advancedBenchmarkRoutes);
 app.use('/api/configs', configRoutes);
 app.use('/api/results', resultRoutes);
 app.use('/api/evaluation', evaluationRoutes);
+app.use('/api/ollama', ollamaRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

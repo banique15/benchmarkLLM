@@ -11,12 +11,16 @@ const BenchmarkTypeSelector = () => {
   const handleSelectAdvanced = () => {
     navigate('/benchmarks/advanced/create');
   };
+  
+  const handleSelectOllama = () => {
+    navigate('/ollama/create');
+  };
 
   return (
     <div className="p-6 animate-fadeIn">
       <h1 className="text-3xl font-bold text-dark-600 mb-8">Select Benchmark Type</h1>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         {/* Basic Benchmark Card */}
         <div className="card bg-gradient-to-br from-blue-50 to-white hover:shadow-lg transition-shadow cursor-pointer" onClick={handleSelectBasic}>
           <div className="p-6">
@@ -88,6 +92,43 @@ const BenchmarkTypeSelector = () => {
             </ul>
             
             <button className="btn btn-primary w-full">Select Advanced Benchmark</button>
+          </div>
+        </div>
+        
+        {/* Ollama Benchmark Card */}
+        <div className="card bg-gradient-to-br from-green-50 to-white hover:shadow-lg transition-shadow cursor-pointer" onClick={handleSelectOllama}>
+          <div className="p-6">
+            <div className="flex items-center mb-4">
+              <div className="p-2 rounded-md bg-green-100 mr-3">
+                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-semibold text-dark-600">Ollama Benchmark</h2>
+            </div>
+            
+            <ul className="space-y-2 mb-6">
+              <li className="flex items-center">
+                <svg className="w-5 h-5 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <span>Local Ollama models</span>
+              </li>
+              <li className="flex items-center">
+                <svg className="w-5 h-5 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <span>React coding test cases</span>
+              </li>
+              <li className="flex items-center">
+                <svg className="w-5 h-5 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <span>Difficulty-based evaluation</span>
+              </li>
+            </ul>
+            
+            <button className="btn btn-primary w-full">Select Ollama Benchmark</button>
           </div>
         </div>
       </div>

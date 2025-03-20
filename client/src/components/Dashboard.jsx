@@ -297,7 +297,7 @@ const Dashboard = () => {
 
       <div>
         <h2 className="text-2xl font-semibold text-dark-600 mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Link
             to="/benchmarks"
             className="card hover:bg-gray-50 flex items-center group"
@@ -334,6 +334,25 @@ const Dashboard = () => {
             <div>
               <h3 className="font-semibold text-lg text-dark-600 mb-1">View All Results</h3>
               <p className="text-gray-600">Analyze and compare benchmark results</p>
+            </div>
+          </Link>
+          <Link
+            to="/ollama"
+            className="card hover:bg-gray-50 flex items-center group"
+          >
+            <div className="mr-5 p-3 rounded-full bg-purple-100 text-purple-600 group-hover:bg-purple-200 transition-colors">
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"
+                />
+              </svg>
+            </div>
+            <div>
+              <h3 className="font-semibold text-lg text-dark-600 mb-1">Ollama Benchmark</h3>
+              <p className="text-gray-600">Benchmark local Ollama models</p>
             </div>
           </Link>
         </div>
